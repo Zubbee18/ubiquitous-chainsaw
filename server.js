@@ -6,6 +6,14 @@ const PORT = process.env.PORT || 3000
 
 const server = http.createServer( async (req, res) => {
 
+    if (req.url === '/') {
+        // res.writeHead(302, { 'Location': '/api/classify' })
+        // res.end()
+        sendResponse(res, 404, 'application/json', {
+            error: 'Invalid endpoint',
+            message: 'Endpoint is invalid, use /api/classify?name=query'
+        })
+    } 
     
     if (req.url.startsWith('/api/classify?name') && req.method === 'GET') {
 
