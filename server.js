@@ -22,8 +22,8 @@ const server = http.createServer( async (req, res) => {
         // Validate: name must contain only alphabetic characters
         if (!nameQuery || !/^[a-zA-Z]+$/.test(nameQuery)) {
             sendResponse(res, 422, 'application/json', {
-                error: "Invalid 'name' parameter",
-                message: "Name must contain only alphabetic characters"
+                status: "error",
+                message: "Invalid 'name' parameter. Name must contain only alphabetic characters"
             })
             return
         }
@@ -38,7 +38,7 @@ const server = http.createServer( async (req, res) => {
     }
 
     if (req.url === '/api/classify' && req.method === 'GET') {
-        sendResponse(res, 400, 'application/json', {error: "Missing 'name' parameter", message: "Please add a name query to your API call"})
+        sendResponse(res, 400, 'application/json', {status: "error", message: "Missing 'name' parameter. Please add a name query to your API call"})
         return
     }
 
