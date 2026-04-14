@@ -13,6 +13,7 @@ const server = http.createServer( async (req, res) => {
             error: 'Invalid endpoint',
             message: 'Endpoint is invalid, use /api/classify?name=query'
         })
+        return
     } 
     
     if (req.url.startsWith('/api/classify?name') && req.method === 'GET') {
