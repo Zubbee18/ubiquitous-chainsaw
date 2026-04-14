@@ -1,5 +1,3 @@
-import { sendResponse } from "./sendResponse.js"
-
 export function processGenderizeData(res, dataObj) {
 
     try {
@@ -22,7 +20,7 @@ export function processGenderizeData(res, dataObj) {
             return dataObj
         } else {
 
-            sendResponse(res, 502, 'application/json', { "status": "error", "message": "No prediction available for the provided name" })
+            res.status(502).json({ "status": "error", "message": "No prediction available for the provided name" })
             return
         }
         
