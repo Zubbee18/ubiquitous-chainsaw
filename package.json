@@ -1,11 +1,11 @@
 {
-  "name": "classify-genderize-api",
+  "name": "create-profiles-api",
   "version": "1.0.0",
-  "description": "A GET endpoint at /api/classify that takes a name query parameter and calls the Genderize API to process it first.",
+  "description": "A POST/GET endpoint at /api/profiles that takes a name query parameter and calls some API and creates a profile of the name.",
   "license": "ISC",
   "author": "Zubbee",
   "type": "module",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node app.js",
@@ -17,6 +17,9 @@
   "dependencies": {
     "axios": "^1.15.0",
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1",
+    "uuid": "^13.0.0"
   }
 }

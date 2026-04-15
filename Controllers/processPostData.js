@@ -1,9 +1,10 @@
+import { v7 as uuidv7 } from 'uuid'
+
 export function processPostData(res, genderRes, ageRes, nationRes) {
 
     let resData = {}
+    resData.id = uuidv7()
     resData.name = genderRes.name.toLowerCase()
-    // objArr.push(genderRes, ageRes, nationRes)
-    // return objArr
 
     try {
         
@@ -11,8 +12,9 @@ export function processPostData(res, genderRes, ageRes, nationRes) {
         if (genderRes.gender && genderRes.count) {
 
             // Rename count to sample_size
-            resData.sample_size = genderRes.count
+            resData.gender = genderRes.gender
             resData.gender_probability = genderRes.probability
+            resData.sample_size = genderRes.count
             
         } else {
             res.status(502).json({ "status": "502", "message": "Genderize returned an invalid response"})
@@ -32,7 +34,8 @@ export function processPostData(res, genderRes, ageRes, nationRes) {
         }
 
         // Extract country list from Nationalize. Pick the country with the highest probability as country_id
-        if (nationRes.country) {
+        if (!nationRes.country.length === 0) {
+
 
             resData.country_id = nationRes.country[0].country_id //picks the first country since it's already in desc order
             resData.country_probability = +nationRes.country[0].probability.toFixed(2)

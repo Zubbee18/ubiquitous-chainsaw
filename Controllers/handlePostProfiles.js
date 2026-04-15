@@ -1,12 +1,13 @@
 import axios from 'axios'
 import { processPostData } from './processPostData.js'
+import { storeProcessedResult } from '../Models/storeProcessedResult.js'
 
 export function handlePostProfiles(req, res) {
 
     const { name } = req.body
-
-    if (name) {
     
+    if (name) {
+        
         if (/^[0-9]+$/.test(name)) { // supposed to check for nonsensical names but for now I can only check for names without numbers
             res.status(422).json({
                 status: "error",
@@ -14,7 +15,8 @@ export function handlePostProfiles(req, res) {
             })
             return
         }
-
+        
+        // retrieve data
         try {
 
             axios.all([
@@ -23,15 +25,21 @@ export function handlePostProfiles(req, res) {
             axios.get(`https://api.nationalize.io?name=${name}`)
             ])
 
-            .then(axios.spread((genderRes, ageRes, nationRes) => {
-                console.log('Genderize Response:', genderRes.data)
-                console.log('Agify Response:', ageRes.data)
-                console.log('Nationalize Response:', nationRes.data)
+            .then(axios.spread(async (genderRes, ageRes, nationRes) => {
 
+                // process data
                 const processedData = processPostData(res, genderRes.data, ageRes.data, nationRes.data)
+                
+                // insert data and return a response
+                const response = await storeProcessedResult(processedData)
 
-                res.json({status: "success", data: processedData}) // for now we're sending it back, after this we'll try creating a db and uploading instead
-
+                // send json response
+                if (response.message === "Profile created successfully")
+                {
+                    res.status(201).json({status: "success", data: response.data}) 
+                } else {
+                    res.status(201).json({status: "success", message: response.message, data: response.data}) 
+                }
             }))
             
         } catch(err) {
