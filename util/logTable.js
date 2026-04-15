@@ -1,16 +1,16 @@
 import { openDatabaseConnection } from "./openDBConnection.js"
 
 
-export async function viewAllProfiles() {
-    const db = await openDatabaseConnection()
+export function viewAllProfiles() {
+    const db = openDatabaseConnection()
 
     try {
-        const profiles = await db.all('SELECT * FROM profiles');
+        const profiles = db.prepare('SELECT * FROM profiles').all();
         console.table(profiles); 
     } catch (err) {
         console.error('Error fetching profiles:', err.message);
     } finally {
-        await db.close();
+        db.close();
     }
 }
 
