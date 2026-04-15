@@ -1,0 +1,1 @@
+// Store the processed result with a UUID v7 id and UTC created_at timestamp

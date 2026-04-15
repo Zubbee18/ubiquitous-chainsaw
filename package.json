@@ -1,0 +1,22 @@
+{
+  "name": "classify-genderize-api",
+  "version": "1.0.0",
+  "description": "A GET endpoint at /api/classify that takes a name query parameter and calls the Genderize API to process it first.",
+  "license": "ISC",
+  "author": "Zubbee",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "dependencies": {
+    "axios": "^1.15.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}
