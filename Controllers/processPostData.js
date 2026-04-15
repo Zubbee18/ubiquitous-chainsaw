@@ -34,7 +34,7 @@ export function processPostData(res, genderRes, ageRes, nationRes) {
         }
 
         // Extract country list from Nationalize. Pick the country with the highest probability as country_id
-        if (!nationRes.country.length === 0) {
+        if (!nationRes.country) {
 
 
             resData.country_id = nationRes.country[0].country_id //picks the first country since it's already in desc order
