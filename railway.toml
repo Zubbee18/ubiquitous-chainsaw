@@ -1,0 +1,2 @@
+[build]
+nixPkgs = ["python3", "gcc", "gnumake"]
