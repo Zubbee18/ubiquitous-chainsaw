@@ -1,9 +1,9 @@
 import { openDatabaseConnection } from "./openDBConnection.js"
 
-export async function createTable() {
-    const db = await openDatabaseConnection()
+export function createTable() {
+    const db = openDatabaseConnection()
 
-    await db.exec(`
+    db.exec(`
 CREATE TABLE IF NOT EXISTS profiles (
     id BLOB PRIMARY KEY,
     name TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 )
 `)
 
-    await db.close()
+    db.close()
     console.log('Profiles table has been created')
     
 }

@@ -1,7 +1,7 @@
-import { openDatabaseConnection } from "./openDBConnection.js"
+import { openDatabaseConnection } from "../util/openDBConnection.js"
 
-export async function retrieveProfileData() {
-    const profileDB = await openDatabaseConnection()
+export function retrieveProfileData() {
+    const profileDB = openDatabaseConnection()
 
     try {
 
@@ -9,14 +9,14 @@ export async function retrieveProfileData() {
 
     } finally {
         
-        await profileDB.close()
+        profileDB.close()
         console.log('Database connection closed')
     }
 
 }
 
-export async function retrieveProfileDataById(id) {
-    const profileDB = await openDatabaseConnection()
+export function retrieveProfileDataById(id) {
+    const profileDB = openDatabaseConnection()
 
     try {
 
@@ -24,7 +24,7 @@ export async function retrieveProfileDataById(id) {
 
     } finally {
 
-        await profileDB.close()
+        profileDB.close()
         console.log('Database connection closed')
     }
 

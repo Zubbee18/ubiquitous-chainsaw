@@ -25,13 +25,13 @@ export function handlePostProfiles(req, res) {
             axios.get(`https://api.nationalize.io?name=${name}`)
             ])
 
-            .then(axios.spread(async (genderRes, ageRes, nationRes) => {
+            .then(axios.spread((genderRes, ageRes, nationRes) => {
 
                 // process data
                 const processedData = processPostData(res, genderRes.data, ageRes.data, nationRes.data)
                 
                 // insert data and return a response
-                const response = await storeProcessedResult(processedData)
+                const response = storeProcessedResult(processedData)
 
                 // send json response
                 if (response.message === "Profile created successfully")
