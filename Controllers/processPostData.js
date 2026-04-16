@@ -34,7 +34,7 @@ export function processPostData(res, genderRes, ageRes, nationRes) {
         }
 
         // Extract country list from Nationalize. Pick the country with the highest probability as country_id
-        if (!nationRes.country) {
+        if (nationRes.country && nationRes.country.length > 0) {
 
 
             resData.country_id = nationRes.country[0].country_id //picks the first country since it's already in desc order
@@ -49,6 +49,7 @@ export function processPostData(res, genderRes, ageRes, nationRes) {
 
     } catch(err) {
 
+        res.status(500).json({status: 'error', message: 'Internal Server Error'})
         throw new Error(`Was unable to process data: ${err}`)
     }
 

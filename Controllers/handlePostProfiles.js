@@ -25,13 +25,13 @@ export function handlePostProfiles(req, res) {
             axios.get(`https://api.nationalize.io?name=${name}`)
             ])
 
-            .then(axios.spread((genderRes, ageRes, nationRes) => {
+            .then(axios.spread(async (genderRes, ageRes, nationRes) => {
 
                 // process data
                 const processedData = processPostData(res, genderRes.data, ageRes.data, nationRes.data)
                 
                 // insert data and return a response
-                const response = storeProcessedResult(processedData)
+                const response = await storeProcessedResult(processedData)
 
                 // send json response
                 if (response.message === "Profile created successfully")
@@ -44,7 +44,9 @@ export function handlePostProfiles(req, res) {
             
         } catch(err) {
 
+            res.status(500).json({status: 'error', message: 'Internal Server Error'})
             throw new Error(`Was unable to get or process data: ${err}`)
+
         }
 
     } else {

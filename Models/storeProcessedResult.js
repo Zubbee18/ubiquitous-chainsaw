@@ -3,24 +3,26 @@ import { openDatabaseConnection } from '../util/openDBConnection.js'
 
 
 // Store the processed result with a UUID v7 id and UTC created_at timestamp
-export function storeProcessedResult(processedData) {
+export async function storeProcessedResult(processedData) {
     
-    createTable()
+    await createTable()
 
-    const profileDB = openDatabaseConnection()
+    const profileDB = await openDatabaseConnection()
     
     try {
 
         const { id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability } = processedData
         
-        const queryData = profileDB.prepare(`SELECT * FROM profiles WHERE name = ?`).get(name)
+        const queryData = await profileDB.get(`SELECT * FROM profiles WHERE name = ?`, [name])
 
         if (!queryData) {
 
-            const insertedData = profileDB.prepare(`
+            const insertedData = await profileDB.get(`
     INSERT INTO profiles (id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability)
     VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ? )
-    RETURNING *`).get(id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability)
+    RETURNING *`, 
+    [id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability]
+    )
     
             console.log('Profile data has been entered in to the table')
     
@@ -40,7 +42,7 @@ export function storeProcessedResult(processedData) {
 
     } finally {
 
-        profileDB.close()
+        await profileDB.close()
         console.log('Database connection closed')
     }
 
