@@ -314,26 +314,33 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 ## Issues Encountered and Resolutions
 
 ### Issue 1: SQLite Native Module Compilation on Deployment
-**Problem**: `better-sqlite3` failed to install on Railway/cloud platforms due to native module compilation requirements.
+**Problem**: The `sqlite3` package failed to compile on Railway/cloud platforms despite multiple attempts to resolve native module compilation issues.
 
-**Resolution**: 
-- Added `nixpacks.toml` configuration specifying required system packages (python3, gcc, gnumake, pkg-config)
-- Configured build phase to rebuild better-sqlite3 from source: `npm rebuild better-sqlite3 --build-from-source`
-- Used `--legacy-peer-deps` flag during installation to resolve dependency conflicts
-- Ensured Node.js 18 is explicitly specified in build environment
+**Attempted Solutions (that didn't work)**:
+- Added `nixpacks.toml` configuration with system packages (python3, gcc, gnumake, pkg-config)
+- Tried rebuilding from source: `npm rebuild sqlite3 --build-from-source`
+- Used `--legacy-peer-deps` flag during installation
+- Ensured Node.js 18 was explicitly specified in build environment
+
+**Final Resolution**: 
+- Switched from `sqlite3` to `better-sqlite3` package
+- `better-sqlite3` has better native compilation support and builds successfully on Railway
+- Updated all database operations to use `better-sqlite3` synchronous API
+- Created AsyncDatabase wrapper to maintain async/await patterns in the codebase
 
 **Configuration Files**:
-- `nixpacks.toml`: Defines build phases and system dependencies
-- `railway.toml`: Specifies Nixpacks requirements
+- `nixpacks.toml`: Retained for better-sqlite3 build requirements
+- `package.json`: Updated dependency from `sqlite3` to `better-sqlite3`
 
-### Issue 2: Async/Await with better-sqlite3
-**Problem**: `better-sqlite3` is synchronous while the Express controllers use async/await patterns, creating inconsistent code patterns.
+### Issue 2: Async/Await Pattern Compatibility
+**Problem**: After switching to `better-sqlite3`, had to adapt to its synchronous API while maintaining async/await patterns used throughout the Express controllers.
 
 **Resolution**: 
 - Created `AsyncDatabase` wrapper class in `openDBConnection.js`
 - Wraps synchronous methods (get, all, run, exec) with async interface
 - Maintains consistent error handling and connection lifecycle management
 - Enables use of try/catch/finally blocks throughout the application
+- This wrapper pattern allowed seamless migration from `sqlite3` without rewriting all controllers
 
 **File**: `util/openDBConnection.js`
 
