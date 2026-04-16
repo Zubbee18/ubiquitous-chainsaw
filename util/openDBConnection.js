@@ -16,11 +16,16 @@ class AsyncDatabase {
     }
 
     async run(sql, params = []) {
-        return this.db.prepare(sql).run(...params)
+        const result = this.db.prepare(sql).run(...params)
+        return result
     }
 
     async exec(sql) {
         return this.db.exec(sql)
+    }
+
+    async close() {
+        return this.db.close()
     }
 }
 
