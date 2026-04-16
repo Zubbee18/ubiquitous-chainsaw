@@ -6,6 +6,10 @@
   "author": "Zubbee",
   "type": "module",
   "main": "app.js",
+  "engines": {
+    "node": "18.x",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node app.js",
