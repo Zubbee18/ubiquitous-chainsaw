@@ -2,6 +2,8 @@
 
 A comprehensive Node.js Express API that creates, retrieves, and manages user profiles by integrating multiple demographic prediction APIs. This extends the Stage Zero classify endpoint with full CRUD operations and persistent SQLite storage.
 
+https://ubiquitous-chainsaw-production-5f71.up.railway.app/
+
 ## Project Overview
 
 This API consolidates data from three demographic prediction services:
