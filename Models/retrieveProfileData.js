@@ -35,7 +35,7 @@ export async function retrieveProfileDataByQueryParams(query) {
 
     } catch(err) {
 
-        throw new Error('Data could not be retrieved', err)
+        throw new Error(`Data could not be retrieved ${err.message}`)
 
     } finally {
         
