@@ -1,11 +1,14 @@
 import cors from 'cors'
 import express from "express"
+import { createTable } from './util/createTable.js'
 import { classifyRouter } from './Routes/classifyRouter.js'
 import { profilesRouter } from './Routes/profilesRouter.js'
 
 const PORT = process.env.PORT || 3000
 
 const app = express()
+
+createTable()
 
 app.use(cors())
 
