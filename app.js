@@ -1,6 +1,7 @@
 import cors from 'cors'
 import express from "express"
-import { apiRouter } from './Routes/appRouter.js'
+import { classifyRouter } from './Routes/classifyRouter.js'
+import { profilesRouter } from './Routes/profilesRouter.js'
 
 const PORT = process.env.PORT || 3000
 
@@ -11,7 +12,9 @@ app.use(cors())
 // Middleware to parse JSON bodies
 app.use(express.json())
 
-app.use('/api', apiRouter)
+app.use('/api', classifyRouter)
+
+app.use('/api', profilesRouter)
 
 app.use((req, res) => {
     res.status(404).json({

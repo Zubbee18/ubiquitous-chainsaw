@@ -1,4 +1,4 @@
-import { retrieveProfileDataByQueryParams } from '../Models/retrieveProfileData.js'
+import { retrieveProfileDataByQueryParams } from '../models/retrieveProfileData.js'
 
 export async function handleGetProfilesByQueryParams(req, res) {
 

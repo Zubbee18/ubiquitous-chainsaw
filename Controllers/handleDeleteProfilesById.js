@@ -1,4 +1,4 @@
-import { deleteProfileDataById } from "../Models/deleteProfileData.js"
+import { deleteProfileDataById } from "../models/deleteProfileData.js"
 
 export async function handleDeleteProfilesById(req, res) {
 

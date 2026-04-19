@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { processPostData } from './processPostData.js'
-import { storeProcessedResult } from '../Models/storeProcessedResult.js'
+import { storeProcessedResult } from '../models/storeProcessedResult.js'
 
 export function handlePostProfiles(req, res) {
 

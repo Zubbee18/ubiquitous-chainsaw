@@ -1,4 +1,4 @@
-import { retrieveProfileDataById } from '../Models/retrieveProfileData.js'
+import { retrieveProfileDataById } from '../models/retrieveProfileData.js'
 
 export async function handleGetProfilesById(req, res) {
 
