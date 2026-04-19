@@ -1,40 +1,24 @@
-import Database from 'better-sqlite3'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { openDatabaseConnection } from "./openDBConnection.js"
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+export async function createTable() {
+    const db = await openDatabaseConnection()
 
-// Wrapper to provide async-like interface for better-sqlite3
-class AsyncDatabase {
-    constructor(db) {
-        this.db = db
-    }
+    await db.exec(`
+CREATE TABLE IF NOT EXISTS profiles (
+    id BLOB PRIMARY KEY,
+    name TEXT NOT NULL,
+    gender TEXT NOT NULL,
+    gender_probability INTEGER NOT NULL,
+    sample_size INTEGER NOT NULL,
+    age INTEGER NOT NULL,
+    age_group TEXT NOT NULL,
+    country_id CHAR(2) NOT NULL, 
+    country_probability INTEGER NOT NULL,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+)
+`)
 
-    async get(sql, params = []) {
-        return this.db.prepare(sql).get(...params)
-    }
-
-    async all(sql, params = []) {
-        return this.db.prepare(sql).all(...params)
-    }
-
-    async run(sql, params = []) {
-        const result = this.db.prepare(sql).run(...params)
-        return result
-    }
-
-    async exec(sql) {
-        return this.db.exec(sql)
-    }
-
-    async close() {
-        return this.db.close()
-    }
-}
-
-export async function openDatabaseConnection() {
-    const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'database.db')
-    const db = new Database(dbPath)
-    return new AsyncDatabase(db)
+    await db.close()
+    console.log('Profiles table has been created')
+    
 }
