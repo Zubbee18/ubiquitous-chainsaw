@@ -1,5 +1,5 @@
 import express from 'express'
-import { handleGenderize } from '../Controllers/handleGenderizeData.js'
+import { handleGenderize } from '../controllers/handleGenderizeData.js'
 
 export const classifyRouter = express.Router()
 

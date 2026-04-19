@@ -1,8 +1,8 @@
 import cors from 'cors'
 import express from "express"
 import { createTable } from './util/createTable.js'
-import { classifyRouter } from './Routes/classifyRouter.js'
-import { profilesRouter } from './Routes/profilesRouter.js'
+import { classifyRouter } from './routes/classifyRouter.js'
+import { profilesRouter } from './routes/profilesRouter.js'
 
 const PORT = process.env.PORT || 3000
 
