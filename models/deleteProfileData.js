@@ -6,8 +6,8 @@ export async function deleteProfileDataById(id) {
 
     try {
 
-        const data = await profileDB.get(`SELECT * FROM profiles WHERE id = ?`, [id])
-        await profileDB.run(`DELETE FROM profiles WHERE id = ?`, [id])
+        const data = await profileDB.get(`SELECT * FROM profiles WHERE id = $1`, [id])
+        await profileDB.run(`DELETE FROM profiles WHERE id = $1`, [id])
         return !data ? 'Data does not exist' : 'Delete successful'
 
     } catch(err) {

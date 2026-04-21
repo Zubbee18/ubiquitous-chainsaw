@@ -13,18 +13,18 @@ export async function storeProcessedResult(processedData) {
 
         const { id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability } = processedData
         
-        const queryData = await profileDB.get(`SELECT * FROM profiles WHERE name = ?`, [name])
+        const queryData = await profileDB.get(`SELECT * FROM profiles WHERE name = $1`, [name])
 
         if (!queryData) {
 
             await profileDB.run(`
     INSERT INTO profiles (id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability)
-    VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ? )`, 
+    VALUES( $1, $2, $3, $4, $5, $6, $7, $8, $9 )`, 
     [id, name, sample_size, gender, gender_probability, age, age_group, country_id, country_probability]
     )
 
             // Fetch the inserted data
-            const insertedData = await profileDB.get(`SELECT * FROM profiles WHERE id = ?`, [id])
+            const insertedData = await profileDB.get(`SELECT * FROM profiles WHERE id = $1`, [id])
     
             console.log('Profile data has been entered in to the table')
     
