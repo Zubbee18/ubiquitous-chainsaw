@@ -1,8 +1,8 @@
 import express from 'express'
-import { handlePostProfiles } from '../controllers/handlePostProfiles.js'
-import { handleGetProfilesById } from '../controllers/handleGetProfilesById.js'
-import { handleDeleteProfilesById } from '../controllers/handleDeleteProfilesById.js'
-import { handleGetProfilesByQueryParams } from '../controllers/handleGetProfiles.js'
+import { handlePostProfiles } from '../controllers/profilesController.js'
+import { handleGetProfilesById } from '../controllers/profilesController.js'
+import { handleDeleteProfilesById } from '../controllers/profilesController.js'
+import { handleGetProfilesByQueryParams } from '../controllers/profilesController.js'
 
 export const profilesRouter = express.Router()
 
