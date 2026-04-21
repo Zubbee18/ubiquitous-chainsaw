@@ -7,8 +7,8 @@
   "type": "module",
   "main": "app.js",
   "engines": {
-    "node": "18.x",
-    "npm": ">=9.0.0"
+    "node": "v24.14.0",
+    "npm": "11.9.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -20,9 +20,10 @@
   },
   "dependencies": {
     "axios": "^1.15.0",
-    "better-sqlite3": "^11.7.0",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "pg": "^8.20.0",
     "uuid": "^13.0.0"
   }
 }

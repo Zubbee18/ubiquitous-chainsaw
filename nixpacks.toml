@@ -1,11 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_18", "python3", "gcc", "gnumake", "pkg-config"]
+nixPkgs = ["nodejs_24"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
-
-[phases.build]
-cmds = ["npm rebuild better-sqlite3 --build-from-source"]
+cmds = ["npm install"]
 
 [start]
 cmd = "npm start"
