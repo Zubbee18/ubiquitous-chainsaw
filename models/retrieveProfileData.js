@@ -4,7 +4,7 @@ export async function retrieveProfileDataByQueryParams(query) {
 
     const profileDB = await openDatabaseConnection()
     
-    const { gender, country_id, age_group } = query
+    const { gender, country_id, age_group, min_age, max_age, min_gender_probability, min_country_probability } = query
     
     let sqlQuery = 'SELECT * FROM profiles'
     let param = []
@@ -25,6 +25,26 @@ export async function retrieveProfileDataByQueryParams(query) {
         if (age_group) { 
             conditions.push('age_group = ?')
             param.push(age_group.toLowerCase()) 
+        }
+
+        if (min_age) { 
+            conditions.push('age >= ?')
+            param.push(min_age)
+        }
+
+        if (max_age) { 
+            conditions.push('age <= ?')
+            param.push(max_age)
+        }
+        
+        if (min_gender_probability) { 
+            conditions.push('gender_probability >= ?')
+            param.push(min_gender_probability)
+        }
+        
+        if (min_country_probability) { 
+            conditions.push('country_probability >= ?')
+            param.push(min_country_probability)
         }
         
         if (conditions.length > 0) {
