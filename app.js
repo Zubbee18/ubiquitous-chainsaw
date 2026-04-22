@@ -2,6 +2,7 @@ import cors from 'cors'
 import express from "express"
 import { classifyRouter } from './routes/classifyRouter.js'
 import { profilesRouter } from './routes/profilesRouter.js'
+import { createTable } from './db/createTable.js'
 
 const PORT = process.env.PORT || 3000
 
@@ -23,5 +24,14 @@ app.use((req, res) => {
         })
 })
 
+async function startServer() {
+    try {
+        await createTable()
+        app.listen(PORT, '0.0.0.0', () => console.log(`This server is listening on port: ${PORT}`))
+    } catch (error) {
+        console.error('Failed to start server:', error)
+        process.exit(1)
+    }
+}
 
-app.listen(PORT, () => console.log(`This server is listening on port: ${PORT}`))
+startServer()

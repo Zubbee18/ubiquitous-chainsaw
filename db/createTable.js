@@ -34,7 +34,9 @@ export async function createTable() {
     
 }
 
-// Execute the function when running directly
-createTable()
-    .then(() => console.log('Done'))
-    .catch(err => console.error('Error creating table:', err.message))
+// Execute the function only when running this file directly (not when imported)
+if (import.meta.url === `file://${process.argv[1]}`) {
+    createTable()
+        .then(() => console.log('Done'))
+        .catch(err => console.error('Error creating table:', err.message))
+}
