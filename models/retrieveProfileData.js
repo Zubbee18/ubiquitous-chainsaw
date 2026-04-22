@@ -54,6 +54,11 @@ export async function retrieveProfileDataByQueryParams(query) {
     if (sort_by && ['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
         const orderDirection = (order && ['ASC', 'DESC'].includes(order.toUpperCase())) ? order.toUpperCase() : 'ASC'
         sqlQuery += ` ORDER BY ${sort_by} ${orderDirection}`
+        
+    } else if (sort_by && !['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
+        return {
+            message: 'Invalid query parameters'
+        }
     }
 
     // Add pagination
