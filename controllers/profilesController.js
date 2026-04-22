@@ -146,7 +146,7 @@ export async function handleGetProfilesByQueryParams(req, res) {
 
     try {
 
-        const profileData = await retrieveProfileDataBySearchParams(req.query)
+        const profileData = await retrieveProfileDataByQueryParams(req.query)
     
         if (profileData.data.length === 0) {
     
@@ -169,7 +169,7 @@ export async function handleGetProfilesBySearchQueryParams(req, res) {
 
     try {
 
-        const profileData = await retrieveProfileDataByQueryParams(req.query)
+        const profileData = await retrieveProfileDataBySearchParams(req.query)
     
         if (profileData.data.length === 0) {
         
