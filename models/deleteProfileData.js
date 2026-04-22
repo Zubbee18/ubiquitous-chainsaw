@@ -1,23 +1,20 @@
-import { openDatabaseConnection } from "../db/openDBConnection.js"
+import { db } from "../db/openDBConnection.js"
 
 export async function deleteProfileDataById(id) {
 
-    const profileDB = await openDatabaseConnection()
-
     try {
 
-        const data = await profileDB.get(`SELECT * FROM profiles WHERE id = $1`, [id])
-        await profileDB.run(`DELETE FROM profiles WHERE id = $1`, [id])
+        // PostgreSQL: query returns an object with a 'rows' array
+        const result = await db.query(`SELECT * FROM profiles WHERE id = $1`, [id])
+        const data = result.rows[0]  // Get first row or undefined
+        
+        await db.query(`DELETE FROM profiles WHERE id = $1`, [id])
         return !data ? 'Data does not exist' : 'Delete successful'
 
     } catch(err) {
 
         throw new Error(`Error: ${err}`)
 
-    } finally {
-
-        await profileDB.close()
-        console.log('Database connection closed')
     }
 
 }

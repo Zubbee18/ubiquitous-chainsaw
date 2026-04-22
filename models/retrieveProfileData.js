@@ -1,122 +1,84 @@
-import { openDatabaseConnection } from "../db/openDBConnection.js"
+import { db } from "../db/openDBConnection.js"
 import { getCountryIdFromQuery } from "../util/getCountryIdFromQuery.js"
 
 export async function retrieveProfileDataByQueryParams(query) {
-
-    const profileDB = await openDatabaseConnection()
     
     const { gender, country_id, age_group, min_age, max_age, min_gender_probability, min_country_probability, sort_by, order, page, limit } = query
     
     let sqlQuery = 'SELECT * FROM profiles'
     let param = []
-
-    // check for normal queries
     let filterConditions = []
+    let paramIndex = 1
+
+    // Build filter conditions
     if (gender) { 
+        filterConditions.push(`gender = $${paramIndex++}`)
         param.push(gender.toLowerCase())
     }
 
     if (country_id) { 
+        filterConditions.push(`country_id = $${paramIndex++}`)
         param.push(country_id.toUpperCase()) 
     }
 
     if (age_group) { 
+        filterConditions.push(`age_group = $${paramIndex++}`)
         param.push(age_group.toLowerCase()) 
     }
 
     if (min_age) { 
+        filterConditions.push(`age >= $${paramIndex++}`)
         param.push(min_age)
     }
 
     if (max_age) { 
+        filterConditions.push(`age <= $${paramIndex++}`)
         param.push(max_age)
     }
 
     if (min_gender_probability) { 
+        filterConditions.push(`gender_probability >= $${paramIndex++}`)
         param.push(min_gender_probability)
     }
 
     if (min_country_probability) { 
+        filterConditions.push(`country_probability >= $${paramIndex++}`)
         param.push(min_country_probability)
     }
 
-    if (param.length > 0) {
-
-        // fill the filterConditions array
-        for (let i=0; i<param.length; i++) {
-
-            if (param[i] === gender.toLowerCase() || param[i] === country_id.toLowerCase() || param[i] === age_group.toLowerCase()) { 
-                filterConditions.push(`${param[i]} = $${i+1}`)
-            }
-
-            if (param[i] === min_age || param[i] === min_gender_probability || param[i] === min_country_probability) { 
-                filterConditions.push(`${param[i]} >= $${i+1}`)
-            }
-
-            if (param[i] === max_age) { 
-                filterConditions.push(`${param[i]} <= $${i+1}`)
-            }
-
-        }
-
-        // params exist then edit the sqlquery with the filterConditions
-        sqlQuery += ' WHERE ' + filterConditions.join(' AND ') + '\n'
+    if (filterConditions.length > 0) {
+        sqlQuery += ' WHERE ' + filterConditions.join(' AND ')
     }
 
-    // check for and filter based on order
-    if (sort_by) { 
-        if (sort_by === 'age' || sort_by === 'created_at' || sort_by === 'gender_probability') {
-
-            sqlQuery += `ORDER BY $${param.length + 1}`
-            param.push(sort_by)
-
-            if (order) { 
-                sqlQuery += `$${param.length + 1}\n`
-                param.push(order)
-            }
-        }
+    // Add ORDER BY clause (column names can't be parameterized)
+    if (sort_by && ['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
+        const orderDirection = (order && ['ASC', 'DESC'].includes(order.toUpperCase())) ? order.toUpperCase() : 'ASC'
+        sqlQuery += ` ORDER BY ${sort_by} ${orderDirection}`
     }
 
-    
-    // getting page and limit
-    if (page) {
-        
-        // calculate offset 
-        const offset = (page - 1) * (limit || 10)
+    // Add pagination
+    const currentPage = parseInt(page) || 1
+    const currentLimit = Math.min(parseInt(limit) || 10, 50)
+    const offset = (currentPage - 1) * currentLimit
 
-        // check if limit is also specified
-        if (limit && limit <= 50) {
-            sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-            param.push(limit, offset)
-
-        } else { // use default limit
-
-            sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-            param.push(10, offset)
-        }
-
-    } else { // use default page and limit
-
-        sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-        param.push(10, 0) // offset of 0 means page is 1 which is the default
-    }
+    sqlQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`
+    param.push(currentLimit, offset)
 
     try {
 
-        // Get the total count and data query promise
-        const countPromise = db.query('SELECT COUNT(*) AS total FROM profiles')
-        const dataPromise = profileDB.query(sqlQuery, param)
+        // Get the total count and data
+        // PostgreSQL: db.query() returns an object with a 'rows' array
+        const countResult = await db.query('SELECT COUNT(*) AS total FROM profiles')
+        const dataResult = await db.query(sqlQuery, param)
 
-        const [dataResult, countResult] = await Promise.all([dataPromise, countPromise]) // object of info, with data in rows property
-
-        const totalEntries = parseInt(countResult.rows[0].total, 10);
-        const totalPages = Math.ceil(totalEntries / limit)
+        const totalEntries = parseInt(countResult.rows[0].total, 10)
+        const totalPages = Math.ceil(totalEntries / currentLimit)
 
         return {
-            data: dataResult.rows,
+            data: dataResult.rows,  // Access the rows array from the result
             pagination: {
-                currentPage: page,
-                pageLimit: limit,
+                currentPage: currentPage,
+                pageLimit: currentLimit,
                 totalEntries: totalEntries,
                 totalPages: totalPages
             },
@@ -125,168 +87,122 @@ export async function retrieveProfileDataByQueryParams(query) {
 
     } catch(err) {
 
-        throw new Error(`Data could not be retrieved ${err.message}`)
+        throw new Error(`Data could not be retrieved: ${err.message}`)
 
-    } finally {
-        
-        await profileDB.close()
-        console.log('Database connection closed')
     }
 
 }
 
 export async function retrieveProfileDataBySearchParams(query) {
 
-    const { q } = query
+    const { q, page, limit } = query
     let sqlQuery = 'SELECT * FROM profiles'
     let param = []
     let conditions = []
-    let age_group = ''
-    let gender = ''
-    let country_id = ''
+    let paramIndex = 1
 
     // get by search parameters
     if (q) {
 
         // check for gender
         if (q.toLowerCase().includes('male')) {
-
             if (q.toLowerCase().includes('female')) {
-                gender = 'female'
+                conditions.push(`gender = $${paramIndex++}`)
+                param.push('female')
             } else {
-                gender = 'male'
+                conditions.push(`gender = $${paramIndex++}`)
+                param.push('male')
             }
-
-            param.push(gender)
         }
 
         // check for country_id
-        if (await getCountryIdFromQuery(q)) {
-
-            country_id = await getCountryIdFromQuery(q)
-            param.push(country_id)
+        const countryId = await getCountryIdFromQuery(q)
+        if (countryId) {
+            conditions.push(`country_id = $${paramIndex++}`)
+            param.push(countryId)
         }
 
         // check for age_group
         if (q.toLowerCase().includes('adult') || q.toLowerCase().includes('child') || q.toLowerCase().includes('teenager') || q.toLowerCase().includes('senior')) {
+            let age_group = ''
             
-            if (q.toLowerCase().includes('adult')) {
+            if (q.toLowerCase().includes('senior')) {
+                age_group = 'senior'
+            } else if (q.toLowerCase().includes('teenager')) {
+                age_group = 'teenager'
+            } else if (q.toLowerCase().includes('adult')) {
                 age_group = 'adult'
-            }
-
-            if (q.toLowerCase().includes('child')) {
+            } else if (q.toLowerCase().includes('child')) {
                 age_group = 'child'
             }
 
-            if (q.toLowerCase().includes('teenager')) {
-                age_group = 'teenager'
+            if (age_group) {
+                conditions.push(`age_group = $${paramIndex++}`)
+                param.push(age_group)
             }
-
-            if (q.toLowerCase().includes('senior')) {
-                age_group = 'senior'
-            }
-
-            param.push(age_group.toLowerCase()) 
         }
 
         // check if the query matches any of the above
-        if (param.length > 0) {
-
-            // fill the filterConditions array
-            for (let i=0; i<param.length; i++) {
-                conditions.push(`${param[i]} = $${i+1}`)
-            }
-
-            // params exist then edit the sqlquery with the filterConditions
-            sqlQuery += ' WHERE ' + filterConditions.join(' AND ') + '\n'
-
+        if (conditions.length > 0) {
+            sqlQuery += ' WHERE ' + conditions.join(' AND ')
         } else {
-
-            // unable to intepret query
             return {
                 message: 'Unable to interpret query'
             }
         }
-
-    
-        // getting page and limit
-        if (page) {
-            
-            // calculate offset 
-            const offset = (page - 1) * (limit || 10)
-
-            // check if limit is also specified
-            if (limit && limit <= 50) {
-                sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-                param.push(limit, offset)
-
-            } else { // use default limit
-
-                sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-                param.push(10, offset)
-            }
-
-        } else { // use default page and limit
-
-            sqlQuery += `LIMIT $${param.length + 1} OFFSET $${param.length + 2}`
-            param.push(10, 0) // offset of 0 means page is 1 which is the default
-        }
-
-        try {
-
-            // Get the total count and data query promise
-            const countPromise = db.query('SELECT COUNT(*) AS total FROM profiles')
-            const dataPromise = profileDB.query(sqlQuery, param)
-
-            const [dataResult, countResult] = await Promise.all([dataPromise, countPromise]) // object of info, with data in rows property
-
-            const totalEntries = parseInt(countResult.rows[0].total, 10);
-            const totalPages = Math.ceil(totalEntries / limit)
-
-            return {
-                data: dataResult.rows,
-                pagination: {
-                    currentPage: page,
-                    pageLimit: limit,
-                    totalEntries: totalEntries,
-                    totalPages: totalPages
-                },
-                message: 'successful'
-            }
-
-        } catch(err) {
-
-            throw new Error(`Data could not be retrieved ${err.message}`)
-
-        } finally {
-            
-            await profileDB.close()
-            console.log('Database connection closed')
-        }
-
     } else {
         return {
             message: 'Invalid query parameters'
         }
+    }
+
+    // Add pagination
+    const currentPage = parseInt(page) || 1
+    const currentLimit = Math.min(parseInt(limit) || 10, 50)
+    const offset = (currentPage - 1) * currentLimit
+
+    sqlQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`
+    param.push(currentLimit, offset)
+
+    try {
+
+        // Get the total count and data
+        // PostgreSQL: db.query() returns an object with a 'rows' array
+        const countResult = await db.query('SELECT COUNT(*) AS total FROM profiles')
+        const dataResult = await db.query(sqlQuery, param)
+
+        const totalEntries = parseInt(countResult.rows[0].total, 10)
+        const totalPages = Math.ceil(totalEntries / currentLimit)
+
+        return {
+            data: dataResult.rows,  // Access the rows array from the result
+            pagination: {
+                currentPage: currentPage,
+                pageLimit: currentLimit,
+                totalEntries: totalEntries,
+                totalPages: totalPages
+            },
+            message: 'successful'
+        }
+
+    } catch(err) {
+
+        throw new Error(`Data could not be retrieved: ${err.message}`)
 
     }
 }
 
 export async function retrieveProfileDataById(id) {
 
-    const profileDB = await openDatabaseConnection()
-
     try {
 
-        return await profileDB.get(`SELECT * FROM profiles WHERE id=$1`, [id])
+        // PostgreSQL: db.query() returns an object with a 'rows' array
+        const result = await db.query(`SELECT * FROM profiles WHERE id=$1`, [id])
+        return result.rows[0]  // Return first row or undefined
 
     } catch(err) {
 
         throw new Error(`Error: ${err.message}`)
 
-    } finally {
-
-        await profileDB.close()
-        console.log('Database connection closed')
     }
 }
