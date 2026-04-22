@@ -129,10 +129,10 @@ export async function handleGetProfilesById(req, res) {
     
             res.status(200).json({status: 'success', data: profile})
     
-        } else {
+        } else () {
     
             res.status(404).json({status: 'error', message: 'Profile not found'})
-        }
+        } 
 
     } catch(err) {
 
@@ -151,6 +151,10 @@ export async function handleGetProfilesByQueryParams(req, res) {
         if (profileData.data.length === 0) {
     
             res.status(404).json({status: 'error', message: 'Profile not found'})
+            
+        } else if (profileData.message === 'Invalid query parameters') {
+            
+            res.status(400).json({status: 'error', message: profileData.message})
             
         } else {
             
