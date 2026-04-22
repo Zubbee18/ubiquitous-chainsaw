@@ -1,4 +1,4 @@
-import { openDatabaseConnection } from "../util/openDBConnection.js"
+import { openDatabaseConnection } from "../db/openDBConnection.js"
 import { getCountryIdFromQuery } from "../util/getCountryIdFromQuery.js"
 
 export async function retrieveProfileDataByQueryParams(query) {

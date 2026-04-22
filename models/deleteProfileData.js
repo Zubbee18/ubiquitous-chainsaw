@@ -1,4 +1,4 @@
-import { openDatabaseConnection } from "../util/openDBConnection.js"
+import { openDatabaseConnection } from "../db/openDBConnection.js"
 
 export async function deleteProfileDataById(id) {
 
