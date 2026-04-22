@@ -1,6 +1,7 @@
 import { db } from "./openDBConnection.js"
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { v7 as uuidv7 } from 'uuid'
 
 export async function seedTable(filePath) {
 
@@ -21,22 +22,25 @@ export async function seedTable(filePath) {
             const { name, gender, gender_probability, age, age_group, 
                 country_id, country_name, country_probability } = profileObj
             
-            // Calculate parameter positions: $1, $2, $3... $8, $9, $10...
-            const offset = index * 8
+            // Generate UUID v7 for this profile
+            const id = uuidv7()
+            
+            // Calculate parameter positions: $1, $2, $3... $9, $10, $11...
+            const offset = index * 9
             values.push(
                 `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, 
-                    $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`
+                    $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`
             )
                     
-            // Add all 8 values for this row
-            params.push(name, gender, gender_probability, age, age_group, 
+            // Add all 9 values for this row (now including id)
+            params.push(id, name, gender, gender_probability, age, age_group, 
                 country_id, country_name, country_probability)
             })
             
         // Single query with all rows
             const query = `
         INSERT INTO profiles 
-        (name, gender, gender_probability, age, age_group, 
+        (id, name, gender, gender_probability, age, age_group, 
         country_id, country_name, country_probability)
         VALUES ${values.join(', ')}
         ON CONFLICT (name) DO NOTHING
@@ -56,4 +60,4 @@ export async function seedTable(filePath) {
 }
 
 
-seedTable('seed-profiles.json')
+seedTable('seed_profiles.json')

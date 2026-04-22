@@ -9,6 +9,6 @@ const pool = new Pool({
     }
 });
 
-export default {
+export const db = {
     query: (text, params) => pool.query(text, params)
 }
