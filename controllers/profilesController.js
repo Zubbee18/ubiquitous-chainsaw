@@ -129,7 +129,7 @@ export async function handleGetProfilesById(req, res) {
     
             res.status(200).json({status: 'success', data: profile})
     
-        } else () {
+        } else {
     
             res.status(404).json({status: 'error', message: 'Profile not found'})
         } 
