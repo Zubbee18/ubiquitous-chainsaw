@@ -1,6 +1,6 @@
 # Profiles API - Stage One
 
-A comprehensive Node.js Express API that creates, retrieves, and manages user profiles by integrating multiple demographic prediction APIs. This extends the Stage Zero classify endpoint with full CRUD operations and persistent SQLite storage.
+A comprehensive Node.js Express API that creates, retrieves, and manages user profiles by integrating multiple demographic prediction APIs. This extends the Stage Zero classify endpoint with full CRUD operations and persistent PostgreSQL storage.
 
 https://ubiquitous-chainsaw-production-5f71.up.railway.app/
 
@@ -11,13 +11,15 @@ This API consolidates data from three demographic prediction services:
 - **[Agify.io](https://agify.io)** - Age estimation based on names
 - **[Nationalize.io](https://nationalize.io)** - Nationality prediction based on names
 
-The system processes and stores this data in a SQLite database, providing a complete profile management solution with filtering and querying capabilities.
+The system processes and stores this data in a PostgreSQL database, providing a complete profile management solution with filtering, querying, and natural language search capabilities.
 
 ## Features
 
 ### Core Functionality
 - **Profile Creation (POST)**: Creates profiles by fetching data from Genderize, Agify, and Nationalize APIs
-- **Profile Retrieval (GET)**: Retrieve profiles by ID or filter by gender, country, and age group
+- **Natural Language Search**: Search profiles using plain English queries (e.g., "adult males from kenya")
+- **Profile Retrieval (GET)**: Retrieve profiles by ID or filter with structured parameters
+- **Advanced Filtering**: Filter by gender, age, age group, country, probabilities with pagination
 - **Profile Deletion (DELETE)**: Remove profiles by UUID
 - **Duplicate Prevention**: Automatically detects and prevents duplicate profile creation
 - **Gender Classification**: Legacy endpoint from Stage Zero for simple name classification
@@ -31,6 +33,8 @@ The system processes and stores this data in a SQLite database, providing a comp
 ### Data Processing
 - Validates input (rejects numeric-only names)
 - Normalizes data (lowercase names, uppercase country codes)
+- Rule-based natural language query parsing (no AI/LLMs)
+- Country name resolution using REST Countries API
 - Calculates age groups: 0–12 → child, 13–19 → teenager, 20–59 → adult, 60+ → senior
 - Selects highest probability country from Nationalize results
 - Comprehensive error handling with appropriate HTTP status codes
@@ -57,10 +61,10 @@ Creates a new profile by fetching demographic data for the provided name.
     "name": "john",
     "gender": "male",
     "gender_probability": 0.99,
-    "sample_size": 15139,
     "age": 45,
     "age_group": "adult",
     "country_id": "US",
+    "country_name": "United States",
     "country_probability": 0.35,
     "created_at": "2026-04-16T12:34:56Z"
   }
@@ -94,36 +98,105 @@ GET /api/profiles/01932e4a-7b4c-7890-a1b2-c3d4e5f6g7h8
     "name": "john",
     "gender": "male",
     "gender_probability": 0.99,
-    "sample_size": 15139,
     "age": 45,
     "age_group": "adult",
     "country_id": "US",
+    "country_name": "United States",
     "country_probability": 0.35,
     "created_at": "2026-04-16T12:34:56Z"
   }
 }
 ```
 
-### GET `/api/profiles`
+### GET `/api/profiles/search`
 
-Retrieves profiles with optional filtering.
+**Natural Language Query Endpoint** - Search profiles using plain English queries.
 
 **Query Parameters:**
-- `gender` (optional): Filter by gender (male/female)
-- `country_id` (optional): Filter by country code (e.g., US, GB, NG)
-- `age_group` (optional): Filter by age group (child, teenager, adult, senior)
+- `q` (required): Natural language search query
+- `page` (optional): Page number for pagination (default: 1)
+- `limit` (optional): Results per page (default: 10, max: 50)
+
+**Supported Keywords:**
+- **Gender**: "male", "female"
+- **Age Groups**: "child", "teenager", "adult", "senior"
+- **Countries**: Any country name (e.g., "nigeria", "kenya", "angola")
 
 **Example Requests:**
 ```bash
-GET /api/profiles?gender=male
-GET /api/profiles?country_id=US&age_group=adult
-GET /api/profiles?gender=female&country_id=NG
+GET /api/profiles/search?q=adult males from kenya
+GET /api/profiles/search?q=female teenagers
+GET /api/profiles/search?q=people from nigeria&page=2&limit=20
 ```
 
 **Success Response (200 OK):**
 ```json
 {
   "status": "success",
+  "page": 1,
+  "limit": 10,
+  "total": 45,
+  "data": [
+    { /* profile 1 */ },
+    { /* profile 2 */ }
+  ]
+}
+```
+
+**Error Response - Unable to Interpret (400 Bad Request):**
+```json
+{
+  "status": "error",
+  "message": "Unable to interpret query"
+}
+```
+
+**How it Works:**
+- Rule-based parsing (no AI/LLMs)
+- Case-insensitive keyword matching
+- Extracts gender, age group, and country from natural language
+- All conditions are combined with AND logic
+- Pagination support for large result sets
+
+**Example Mappings:**
+- "adult males from kenya" → gender=male + age_group=adult + country_id=KE
+- "female teenagers" → gender=female + age_group=teenager
+- "people from angola" → country_id=AO
+
+For full documentation on natural language parsing logic and limitations, see the [main README](../README.md).
+
+### GET `/api/profiles`
+
+Retrieves profiles with structured query parameters (alternative to natural language search).
+
+**Query Parameters:**
+- `gender` (optional): Filter by gender (male/female)
+- `country_id` (optional): Filter by country code (e.g., US, GB, NG)
+- `age_group` (optional): Filter by age group (child, teenager, adult, senior)
+- `min_age` (optional): Minimum age filter
+- `max_age` (optional): Maximum age filter
+- `min_gender_probability` (optional): Minimum gender probability
+- `min_country_probability` (optional): Minimum country probability
+- `sort_by` (optional): Sort field (age, created_at, gender_probability)
+- `order` (optional): Sort order (ASC, DESC)
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Results per page (default: 10, max: 50)
+
+**Example Requests:**
+```bash
+GET /api/profiles?gender=male
+GET /api/profiles?country_id=US&age_group=adult
+GET /api/profiles?gender=female&country_id=NG&min_age=25&max_age=40
+GET /api/profiles?sort_by=age&order=DESC&page=2&limit=20
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "status": "success",
+  "page": 1,
+  "limit": 10,
+  "total": 127,
   "data": [
     { /* profile 1 */ },
     { /* profile 2 */ }
@@ -222,8 +295,9 @@ GET /api/classify?name=John
 ## Installation & Setup
 
 ### Prerequisites
-- Node.js 18.x or higher
-- npm 9.0.0 or higher
+- Node.js 24.x
+- npm 11.9.0 or higher
+- PostgreSQL database (local or hosted)
 
 ### Local Development
 
@@ -238,12 +312,23 @@ cd stage-one
 npm install
 ```
 
-3. Start the development server:
+3. Create a `.env` file in the project root:
+```env
+DATABASE_URL=postgresql://username:password@localhost:5432/profiles_db
+```
+
+4. Initialize the database:
+```bash
+node db/createTable.js
+node db/seedTable.js
+```
+
+5. Start the development server:
 ```bash
 npm run dev
 ```
 
-4. Start the production server:
+6. Start the production server:
 ```bash
 npm start
 ```
@@ -252,22 +337,24 @@ The server will start on port 3000 by default (or the PORT environment variable 
 
 ## Database Schema
 
-SQLite database with the following schema:
+PostgreSQL database with the following schema:
 
 ```sql
-CREATE TABLE profiles (
-    id BLOB PRIMARY KEY,              -- UUIDv7
-    name TEXT NOT NULL,               -- Lowercase normalized
-    gender TEXT NOT NULL,             -- male/female
-    gender_probability INTEGER,       -- 0-1 probability
-    sample_size INTEGER NOT NULL,     -- Genderize sample size
-    age INTEGER NOT NULL,             -- Estimated age
-    age_group TEXT NOT NULL,          -- child/teenager/adult/senior
-    country_id CHAR(2) NOT NULL,      -- ISO 3166-1 alpha-2 code
-    country_probability INTEGER,      -- 0-1 probability
-    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY,                    -- UUIDv7
+    name VARCHAR UNIQUE,                    -- Lowercase normalized, unique constraint
+    gender VARCHAR NOT NULL,                -- male/female
+    gender_probability FLOAT NOT NULL,      -- 0-1 probability
+    age INTEGER NOT NULL,                   -- Estimated age
+    age_group VARCHAR NOT NULL,             -- child/teenager/adult/senior
+    country_id VARCHAR(2) NOT NULL,         -- ISO 3166-1 alpha-2 code
+    country_name VARCHAR NOT NULL,          -- Full country name
+    country_probability FLOAT NOT NULL,     -- 0-1 probability
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 )
 ```
+
+**Note:** The `sample_size` field from Genderize API is processed but not persisted in the database.
 
 ## Project Structure
 
@@ -276,75 +363,90 @@ stage-one/
 ├── app.js                          # Main application entry point
 ├── package.json                    # Dependencies and scripts
 ├── database.db                     # SQLite database (auto-created)
-├── nixpacks.toml                   # Nixpacks build configuration
-├── railway.toml                    # Railway deployment configuration
-├── Controllers/
-│   ├── handlePostProfiles.js       # POST /api/profiles handler
-│   ├── handleGetProfiles.js        # GET /api/profiles handler
-│   ├── handleGetProfilesById.js    # GET /api/profiles/:id handler
-│   ├── handleDeleteProfilesById.js # DELETE /api/profiles/:id handler
-│   ├── handleGenderizeData.js      # GET /api/classify handler (Stage Zero)
-│   ├── processPostData.js          # Process API responses
-│   └── processGenderizeData.js     # Process Genderize data
-├── Models/
+├── controllers/
+│   ├── profilesController.js       # Profile CRUD handlers
+│   └── classifyController.js       # GET /api/classify handler (Stage Zero)
+├── models/
 │   ├── storeProcessedResult.js     # Insert profile into database
-│   ├── retrieveProfileData.js      # Query profiles from database
+│   ├── retrieveProfileData.js      # Query profiles + natural language parser
 │   └── deleteProfileData.js        # Delete profile from database
-├── Routes/
-│   └── appRouter.js                # API route definitions
+├── routes/
+│   ├── profilesRouter.js           # Profile API routes
+│   └── classifyRouter.js           # Classification API routes
+├── db/
+│   ├── createTable.js              # Database schema setup
+│   ├── seedTable.js                # Sample data seeding
+│   ├── openDBConnection.js         # Database connection wrapper
+│   ├── openDBConnection.js         # PostgreSQL connection pool
+│   ├── logTable.js                 # Database logging utility
+│   └── schema.sql                  # SQL schema definition
 └── util/
-    ├── createTable.js              # Database table creation
-    ├── openDBConnection.js         # Database connection wrapper
-    ├── getGenderizeData.js         # Genderize API client
-    └── logTable.js                 # Logging utility
+    └── getCountryIdFromQuery.js    # Natural language country name resolver
 ```
 
 ## Technical Implementation Details
 
 ### UUID v7 Implementation
-Uses UUIDv7 (time-ordered UUIDs) for better database performance and sortability. UUIDs are stored as BLOBs in SQLite.
+Uses UUIDv7 (time-ordered UUIDs) for better database performance and sortability. UUIDs are stored as native UUID type in PostgreSQL.
 
 ### Database Connection Pattern
-Implements an AsyncDatabase wrapper class to provide async/await interface over better-sqlite3's synchronous API, enabling consistent error handling and connection management.
+Uses `pg` (node-postgres) connection pooling for efficient database operations. The `db` module exports a query function that manages connections automatically:
+
+```javascript
+import { Pool } from 'pg'
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // For Railway/cloud deployment
+})
+
+export const db = {
+    query: (text, params) => pool.query(text, params)
+}
+```
 
 ### Parallel API Calls
 Uses `axios.all()` to fetch data from Genderize, Agify, and Nationalize APIs concurrently, reducing response time.
 
 ### Dynamic Query Building
-Builds SQL queries dynamically based on provided filter parameters (gender, country_id, age_group), supporting flexible querying without SQL injection vulnerabilities.
+Builds parameterized SQL queries dynamically based on provided filter parameters (gender, country_id, age_group, min_age, max_age, probabilities, sorting, pagination). Uses PostgreSQL parameterized queries ($1, $2, etc.) to prevent SQL injection.
+
+### Natural Language Parsing
+Implements rule-based keyword extraction from plain English queries:
+- **Gender detection**: Case-insensitive matching for "male"/"female"
+- **Country detection**: Fetches from REST Countries API and matches using word boundaries
+- **Age group detection**: Matches "child", "teenager", "adult", "senior" keywords
+- **Query construction**: Combines all detected filters with AND logic and pagination
 
 ## Issues Encountered and Resolutions
 
-### Issue 1: SQLite Native Module Compilation on Deployment
-**Problem**: The `sqlite3` package failed to compile on Railway/cloud platforms despite multiple attempts to resolve native module compilation issues.
-
-**Attempted Solutions (that didn't work)**:
-- Added `nixpacks.toml` configuration with system packages (python3, gcc, gnumake, pkg-config)
-- Tried rebuilding from source: `npm rebuild sqlite3 --build-from-source`
-- Used `--legacy-peer-deps` flag during installation
-- Ensured Node.js 18 was explicitly specified in build environment
-
-**Final Resolution**: 
-- Switched from `sqlite3` to `better-sqlite3` package
-- `better-sqlite3` has better native compilation support and builds successfully on Railway
-- Updated all database operations to use `better-sqlite3` synchronous API
-- Created AsyncDatabase wrapper to maintain async/await patterns in the codebase
-
-**Configuration Files**:
-- `nixpacks.toml`: Retained for better-sqlite3 build requirements
-- `package.json`: Updated dependency from `sqlite3` to `better-sqlite3`
-
-### Issue 2: Async/Await Pattern Compatibility
-**Problem**: After switching to `better-sqlite3`, had to adapt to its synchronous API while maintaining async/await patterns used throughout the Express controllers.
+### Issue 1: Database Selection and Configuration
+**Problem**: Chose PostgreSQL for better scalability and production-ready features compared to SQLite. Required proper connection pooling and environment configuration for deployment.
 
 **Resolution**: 
-- Created `AsyncDatabase` wrapper class in `openDBConnection.js`
-- Wraps synchronous methods (get, all, run, exec) with async interface
-- Maintains consistent error handling and connection lifecycle management
-- Enables use of try/catch/finally blocks throughout the application
-- This wrapper pattern allowed seamless migration from `sqlite3` without rewriting all controllers
+- Implemented PostgreSQL with `pg` (node-postgres) package using connection pooling
+- Configured SSL support for Railway deployment
+- Used environment variables for connection string management
+- Added TIMESTAMPTZ for proper timezone handling
 
-**File**: `util/openDBConnection.js`
+**Configuration Files**:
+- `db/openDBConnection.js`: PostgreSQL connection pool setup
+- `.env`: DATABASE_URL configuration
+- `nixpacks.toml`: Build configuration for Railway
+
+### Issue 2: Natural Language Query Parsing
+**Problem**: Required rule-based parsing of plain English queries into database filters without using AI/LLMs.
+
+**Resolution**: 
+- Implemented keyword extraction for gender, age groups, and country names
+- Used REST Countries API for country name to code resolution
+- Applied word boundary regex matching to avoid false positives
+- Combined all filters with AND logic for precise results
+- Created separate endpoint `/api/profiles/search` for natural language queries
+
+**Files**: 
+- `models/retrieveProfileData.js`: Contains `retrieveProfileDataBySearchParams()` function
+- `util/getCountryIdFromQuery.js`: Country name resolution logic
 
 ### Issue 3: Duplicate Profile Prevention
 **Problem**: Multiple POST requests with the same name would create duplicate entries in the database.
@@ -355,7 +457,7 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 - Returns existing profile with message "Profile already exists" instead of creating duplicate
 - Still returns 201 status code to maintain consistent API response
 
-**File**: `Models/storeProcessedResult.js`
+**File**: `models/storeProcessedResult.js`
 
 ### Issue 4: Invalid API Response Handling
 **Problem**: External APIs (Genderize, Agify, Nationalize) occasionally return incomplete or null data, causing server crashes.
@@ -366,7 +468,7 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 - Prevents processing of incomplete data that would cause database constraint violations
 - Early return pattern prevents further processing on invalid data
 
-**File**: `Controllers/processPostData.js`
+**File**: `controllers/profilesController.js` (processPostData function)
 
 ### Issue 5: Input Validation
 **Problem**: Numeric or special character inputs to name field caused unexpected API responses and data integrity issues.
@@ -378,8 +480,8 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 - Consistent validation across POST /api/profiles and GET /api/classify endpoints
 
 **Files**: 
-- `Controllers/handlePostProfiles.js`
-- `Controllers/handleGenderizeData.js`
+- `controllers/profilesController.js`: handlePostProfiles() function
+- `controllers/classifyController.js`: handleGenderize() function
 
 ### Issue 6: Case Sensitivity in Filtering
 **Problem**: Database queries were case-sensitive, causing failed searches when users provided different casing.
@@ -392,8 +494,8 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 - Ensures consistent data storage and retrieval
 
 **Files**:
-- `Controllers/processPostData.js` (normalization at storage)
-- `Models/retrieveProfileData.js` (normalization at query)
+- `controllers/profilesController.js`: processPostData() function
+- `models/retrieveProfileData.js`: Query normalization
 
 ### Issue 7: Dynamic Query Parameter Handling
 **Problem**: Needed flexible filtering by multiple optional parameters without creating complex conditional logic.
@@ -405,18 +507,18 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 - Joins multiple conditions with AND operator
 - Returns all profiles when no filters provided
 
-**File**: `Models/retrieveProfileData.js`
+**File**: `models/retrieveProfileData.js`
 
 ### Issue 8: Database Connection Lifecycle
-**Problem**: Database connections not properly closed, leading to resource leaks.
+**Problem**: Database connections need proper management to prevent resource leaks and ensure efficient connection pooling.
 
 **Resolution**:
-- Implemented try/catch/finally pattern in all database operations
-- Ensures connection closure in finally block regardless of success or error
-- Added console logging for connection status
-- Each operation opens and closes its own connection to prevent connection pooling issues
+- Implemented PostgreSQL connection pooling with `pg` package
+- Pool automatically manages connection lifecycle and reuse
+- Try/catch patterns in all database operations for error handling
+- Connection pool shared across all requests for efficiency
 
-**Files**: All files in `Models/` directory
+**File**: `db/openDBConnection.js`
 
 ## Deployment
 
@@ -425,36 +527,64 @@ Builds SQL queries dynamically based on provided filter parameters (gender, coun
 The application is configured for deployment on Railway with the following considerations:
 
 1. **Build Configuration**: Nixpacks automatically detects Node.js and uses the provided `nixpacks.toml` configuration
-2. **Native Dependencies**: System packages (python3, gcc, gnumake) are installed during build phase
-3. **SQLite Persistence**: Database file persists in the deployment environment
+2. **Database**: Uses Railway's PostgreSQL addon with automatic DATABASE_URL injection
+3. **SSL Configuration**: PostgreSQL connection configured with SSL support for Railway
 4. **Port Configuration**: Uses `process.env.PORT` for dynamic port assignment
+5. **Environment Variables**: DATABASE_URL is automatically provided by Railway PostgreSQL service
 
 ### Environment Variables
 
-- `PORT`: Server port (default: 3000)
+Create a `.env` file with the following variables:
+
+```env
+DATABASE_URL=postgresql://username:password@hostname:5432/database_name
+PORT=3000  # Optional, defaults to 3000
+```
+
+For Railway deployment, DATABASE_URL is automatically provided.
 
 ## Dependencies
 
 ### Production Dependencies
 - `express` (^5.2.1): Web framework
 - `axios` (^1.15.0): HTTP client for API calls
-- `better-sqlite3` (^11.7.0): SQLite database driver
+- `pg` (^8.20.0): PostgreSQL database driver with connection pooling
 - `uuid` (^13.0.0): UUID v7 generation
 - `cors` (^2.8.6): CORS middleware
+- `dotenv` (^17.4.2): Environment variable management
 
 ### Development Dependencies
 - `nodemon` (^3.1.14): Development server with auto-reload
+
+## Natural Language Search
+
+This API includes a rule-based natural language parser that converts plain English queries into database filters.
+
+**Parsing Logic:**
+1. **Gender Detection**: Scans for "male" or "female" keywords (case-insensitive)
+2. **Country Detection**: Matches country names using REST Countries API and word boundaries
+3. **Age Group Detection**: Identifies "child", "teenager", "adult", or "senior" keywords
+4. **Query Building**: Combines detected filters with AND logic
+
+**Limitations:**
+- Age range keywords ("above", "below", "over", "under") not yet supported
+- Numeric age extraction from natural language not implemented
+- "young" keyword not yet mapped to age range 16-24
+- Cannot handle OR conditions or negations
+- All filters use AND logic only
+
+For complete documentation on natural language parsing, supported keywords, and edge cases, see the [main README](../README.md).
 
 ## Future Enhancements
 
 - Add authentication and authorization
 - Implement rate limiting for external API calls
-- Add caching layer for frequently requested profiles
+- Add caching layer for frequently requested profiles and country data
 - Implement profile update (PUT/PATCH) endpoint
 - Add bulk profile creation endpoint
-- Implement pagination for GET /api/profiles
 - Add data export functionality (CSV, JSON)
 - Implement profile search by partial name matching
+- Enhanced natural language parsing (age ranges, synonyms, OR logic)
 - Add API usage analytics and logging
 - Implement webhook notifications for profile events
 
@@ -465,39 +595,3 @@ ISC
 ## Author
 
 Zubbee
-
-The server will start on port 3000 by default (or the port specified in `PORT` environment variable).
-
-## Project Structure
-
-```
-stage-zero/
-├── app.js                          # Main application entry point
-├── package.json                    # Project dependencies and scripts
-├── Controllers/
-│   ├── handleGenderizeData.js      # Request handler and validation
-│   └── processGenderizeData.js     # Data processing logic
-├── Routes/
-│   └── appRouter.js                # API route definitions
-└── ../util/
-    └── getGenderizeData.js         # Utility function to fetch from Genderize API (applicable to other APIs)
-```
-
-## Technologies
-
-- **Node.js**: Runtime environment
-- **Express 5.x**: Web framework
-- **Genderize.io API**: Gender prediction service
-
-## Dev Dependencies
-
-- **nodemon**: Development server with auto-reload
-
-## Author
-
-Zubbee
-
-## License
-
-ISC
-

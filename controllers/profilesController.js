@@ -2,8 +2,9 @@ import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { deleteProfileDataById } from "../models/deleteProfileData.js"
 import { storeProcessedResult } from '../models/storeProcessedResult.js'
-import { retrieveProfileDataById } from '../models/retrieveProfileData.js'
-import { retrieveProfileDataByQueryParams } from '../models/retrieveProfileData.js'
+import { retrieveProfileDataById, 
+        retrieveProfileDataByQueryParams, 
+        retrieveProfileDataBySearchParams } from '../models/retrieveProfileData.js'
 
 
 
@@ -145,7 +146,7 @@ export async function handleGetProfilesByQueryParams(req, res) {
 
     try {
 
-        const profileData = await retrieveProfileDataByQueryParams(req.query)
+        const profileData = await retrieveProfileDataBySearchParams(req.query)
     
         if (profileData.data.length === 0) {
     

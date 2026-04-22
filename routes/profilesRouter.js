@@ -13,9 +13,10 @@ profilesRouter.post('/', handlePostProfiles)
 // for get endpoint of api/profiles/{id}
 profilesRouter.get('/:id', handleGetProfilesById) // come back to id later
 
+profilesRouter.get('/search', handleGetProfilesBySearchQueryParams)
+
 // for get endpoing of api/profiles
 profilesRouter.get('/', handleGetProfilesByQueryParams)
 
-profilesRouter.get('/search', handleGetProfilesBySearchQueryParams)
 
 profilesRouter.delete('/:id', handleDeleteProfilesById)

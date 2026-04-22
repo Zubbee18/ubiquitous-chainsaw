@@ -1,5 +1,5 @@
-import { createTable } from '../util/createTable.js'
-import { openDatabaseConnection } from '../util/openDBConnection.js'
+import { createTable } from '../db/createTable.js'
+import { openDatabaseConnection } from '../db/openDBConnection.js'
 
 
 // Store the processed result with a UUID v7 id and UTC created_at timestamp
