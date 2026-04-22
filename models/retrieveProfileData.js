@@ -102,7 +102,25 @@ export async function retrieveProfileDataByQueryParams(query) {
 
     try {
 
-        return await profileDB.all(sqlQuery, param) // array of objects
+        // Get the total count
+        const countPromise = db.query('SELECT COUNT(*) AS total FROM profiles')
+
+        const dataPromise = profileDB.query(sqlQuery, param)
+
+        const [dataResult, countResult] = await Promise.all([dataPromise, countPromise]) // object of info, with data in rows property
+
+        const totalEntries = parseInt(countResult.rows[0].total, 10);
+        const totalPages = Math.ceil(totalEntries / limit)
+
+        return {
+            transactions: dataResult.rows,
+            pagination: {
+                currentPage: page,
+                pageLimit: limit,
+                totalEntries: totalEntries,
+                totalPages: totalPages
+            }
+        }
 
     } catch(err) {
 

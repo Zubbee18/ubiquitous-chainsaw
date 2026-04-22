@@ -153,7 +153,7 @@ export async function handleGetProfilesByQueryParams(req, res) {
             
         } else {
             
-            res.status(200).json({status: 'success', data: profileData})
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, data: profileData.transactions})
         }
         
     } catch (err) {
