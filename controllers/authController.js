@@ -133,7 +133,7 @@ export async function refreshToken(req, res) {
             return res.status(401).json({status: 'error', message: 'Refresh token has been revoked'})
         }
         
-        // 1. check if it is expired and valid
+        // check if it is expired and valid
         const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
         console.log("Token is valid:", decodedRefreshToken)
 
@@ -145,7 +145,6 @@ export async function refreshToken(req, res) {
             return res.status(401).json({status: 'error', message: 'User does not exist'})
             
         }
-        
         
         // since user exists then issue new pair of tokens
 
@@ -168,7 +167,7 @@ export async function refreshToken(req, res) {
 
         // send to Web (HttpOnly Cookie) or CLI (JSON)
         res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ status: "success", refreshToken: newRefreshToken, accessToken: newAccessToken })
+        .json({ status: "success", refresh_token: newRefreshToken, access_token: newAccessToken })
 
     } catch (err) {
         
