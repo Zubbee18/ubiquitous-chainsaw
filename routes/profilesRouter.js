@@ -1,4 +1,5 @@
 import express from 'express'
+import { checkAdminAccess } from '../middlewares/adminAccess.js'
 import { handlePostProfiles,
         handleGetProfilesById,
         handleDeleteProfilesById, 
@@ -8,7 +9,7 @@ import { handlePostProfiles,
 export const profilesRouter = express.Router()
 
 // for the post endpoint of /api/profiles
-profilesRouter.post('/', handlePostProfiles)
+profilesRouter.post('/', checkAdminAccess, handlePostProfiles)
 
 // for get endpoint of /api/profiles for natural language query
 profilesRouter.get('/search', handleGetProfilesBySearchQueryParams)
