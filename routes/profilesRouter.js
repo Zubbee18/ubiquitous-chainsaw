@@ -15,9 +15,9 @@ profilesRouter.post('/', checkAdminAccess, handlePostProfiles)
 profilesRouter.get('/search', handleGetProfilesBySearchQueryParams)
 
 // for get endpoint of api/profiles/{id}
-profilesRouter.get('/:id', handleGetProfilesById)
+profilesRouter.get('/:id', checkAdminAccess, handleGetProfilesById)
 
 // for get endpoing of api/profiles
-profilesRouter.get('/', handleGetProfilesByQueryParams)
+profilesRouter.get('/', checkAdminAccess, handleGetProfilesByQueryParams)
 
-profilesRouter.delete('/:id', handleDeleteProfilesById)
+profilesRouter.delete('/:id', checkAdminAccess, handleDeleteProfilesById)
