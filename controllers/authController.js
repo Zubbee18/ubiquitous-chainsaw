@@ -1,7 +1,12 @@
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import axios from 'axios'
-import { checkUserExists, getLoginUserFromId, createAndLoginUser } from '../models/userData.js'
+import { checkUserExists, getUser } from '../models/userData.js'
+import { isTokenBlacklisted, 
+        blacklistToken } from '../db/tokenBlacklist.js'
+import { checkUserExists, 
+        getLoginUserFromId, 
+        createAndLoginUser } from '../models/userData.js'
 
 
 export function redirectUserToGitHub(req, res) {
@@ -121,28 +126,43 @@ export async function refreshToken(req, res) {
     
     // Verify refresh token
     try {
-        const decodedToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
-
-        // check if token has already been used
-
         
+        // check if token has already been used (blacklisted)
+        if (await isTokenBlacklisted(refreshToken)) {
+            return res.status(401).json({status: 'error', message: 'Refresh token has been revoked'})
+        }
+        
+        // 1. check if it is expired and valid
+        const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
+        console.log("Token is valid:", decodedRefreshToken)
+
+        // get user id from token claims
+        const userId = decodedRefreshToken.id
+
+        if (!await checkUserExists(userId, false)) {
+            // if user does not exist send an error message
+            return res.status(401).json({status: 'error', message: 'User does not exist'})
+            
+        }
+        
+        // since user exists then issue new pair of tokens
         // Issue a new Access Token
         const newAccessToken = jwt.sign(
-            { id: decodedUser.id }, 
+            { id: userId }, 
             process.env.JWT_SECRET, 
             { expiresIn: '3m' }
         )
 
         // Issue a new Refresh Token
         const newRefreshToken = jwt.sign(
-            { id: decodedUser.id }, 
+            { id: userId }, 
             process.env.REFRESH_SECRET, 
             { expiresIn: '5m' }
         )
 
         // send to Web (HttpOnly Cookie) or CLI (JSON)
-        res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' });
-        res.json({ status: "success", refreshToken: newRefreshToken, accessToken: newAccessToken })
+        res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
+        .json({ status: "success", refreshToken: newRefreshToken, accessToken: newAccessToken })
 
     } catch (err) {
         
