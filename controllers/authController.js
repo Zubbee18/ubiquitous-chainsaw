@@ -111,7 +111,7 @@ export async function handleGitHubCallback(req, res) {
     
         // send to Web (HttpOnly Cookie) or CLI (JSON)
         res.cookie('access_token', accessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ accessToken, refreshToken })
+        .json({ status: "success", access_token: accessToken, refresh_token: refreshToken })
 
 
     } catch(err) {
@@ -123,19 +123,18 @@ export async function handleGitHubCallback(req, res) {
 
 export async function refreshToken(req, res) {
 
-    const { refreshToken } = req.body
+    const { refresh_token } = req.body
     
     // Verify refresh token
     try {
         
         // check if token has already been used (blacklisted)
-        if (await isTokenBlacklisted(refreshToken)) {
+        if (await isTokenBlacklisted(refresh_token)) {
             return res.status(401).json({status: 'error', message: 'Refresh token has been revoked'})
         }
         
         // check if it is expired and valid
-        const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
-        console.log("Token is valid:", decodedRefreshToken)
+        const decodedRefreshToken = jwt.verify(refresh_token, process.env.REFRESH_SECRET)
 
         // get user id from token claims
         const userId = decodedRefreshToken.id
@@ -149,7 +148,7 @@ export async function refreshToken(req, res) {
         // since user exists then issue new pair of tokens
 
         // blacklist the old refresh token
-        await blacklistToken(refreshToken)
+        await blacklistToken(refresh_token, decodedRefreshToken)
 
         // Issue a new Access Token
         const newAccessToken = jwt.sign(
@@ -177,22 +176,21 @@ export async function refreshToken(req, res) {
 
         }
 
+        console.log(err)
         res.status(403).send("Refresh token invalid")
     }
 }
 
 export async function logoutUser(req, res) {
 
-    const { refreshToken } = req.body
-
-
-    // blacklist the refresh token
-    await blacklistToken(refreshToken)
+    const { refresh_token } = req.body
     
     try {
         // check if it is expired and valid
-        const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
-        console.log("Token is valid:", decodedRefreshToken)
+        const decodedRefreshToken = jwt.verify(refresh_token, process.env.REFRESH_SECRET)
+        
+        // blacklist the refresh token
+        await blacklistToken(refresh_token, decodedRefreshToken)
 
         // get user id from token claims
         const userId = decodedRefreshToken.id
