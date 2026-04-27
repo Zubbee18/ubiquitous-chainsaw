@@ -34,6 +34,27 @@ export async function createTable() {
     
 }
 
+export async function createUsersTable() {
+
+    // Create the table
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY,
+            github_id VARCHAR UNIQUE,
+            username VARCHAR NOT NULL,
+            email VARCHAR NOT NULL,
+            avatar_url VARCHAR NOT NULL,
+            role VARCHAR NOT NULL CHECK (role IN ('admin', 'analyst')),
+            is_active BOOLEAN NOT NULL,
+            last_login_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        )
+    `)
+
+    console.log('Users table has been created with comments')
+    
+}
+
 // Execute the function only when running this file directly (not when imported)
 if (import.meta.url === `file://${process.argv[1]}`) {
     createTable()
