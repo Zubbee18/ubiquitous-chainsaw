@@ -1,11 +1,12 @@
-import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { deleteProfileDataById } from "../models/deleteProfileData.js"
 import { storeProcessedResult } from '../models/storeProcessedResult.js'
 import { retrieveProfileDataById, 
         retrieveProfileDataByQueryParams, 
-        retrieveProfileDataBySearchParams } from '../models/retrieveProfileData.js'
-
+        retrieveProfileDataBySearchParams,
+        retrieveProfileDataForExport } from '../models/retrieveProfileData.js'
+import axios from 'axios'
+import { parse } from 'json2csv'
 
 
 function processPostData(res, genderRes, ageRes, nationRes) {
@@ -116,6 +117,59 @@ export function handlePostProfiles(req, res) {
     }
 
 }
+
+
+export async function exportProfiles(req, res) {
+    try {
+        const profileData = await retrieveProfileDataForExport(req.query)
+        console.log(profileData)
+        
+        if (profileData.data.length === 0) {
+            return res.status(404).json({status: 'error', message: 'Profile not found'})
+        }
+        
+        // Check if CSV format is requested
+        const format = req.query.format || 'json'
+        
+        if (format.toLowerCase() === 'csv') {
+            // Define CSV fields
+            const fields = [
+                'id', 
+                'name', 
+                'gender', 
+                'gender_probability', 
+                'age', 
+                'age_group', 
+                'country_id',
+                'country_name',
+                'country_probability',
+                'created_at'
+            ]
+            
+            // Convert to CSV
+            const csv = parse(profileData.data, { fields })
+            
+            // Set headers for CSV download
+            res.setHeader('Content-Type', 'text/csv')
+            res.setHeader('Content-Disposition', `attachment; filename="profiles_${new Date().toISOString().split('T')[0]}.csv"`)
+            
+            return res.status(200).send(csv)
+
+        } else {
+            // Return JSON (existing behavior)
+            return res.status(200).json({
+                status: 'success', 
+                total: profileData.data.length, 
+                data: profileData.data
+            })
+        }
+        
+    } catch (err) {
+        console.log(err)
+        res.status(500).json({status: 'error', message: 'Internal Server Error'})
+    }
+}
+
 
 export async function handleGetProfilesById(req, res) {
 

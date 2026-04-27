@@ -93,6 +93,81 @@ export async function retrieveProfileDataByQueryParams(query) {
 
 }
 
+export async function retrieveProfileDataForExport(query) {
+    
+    const { gender, country_id, age_group, min_age, max_age, min_gender_probability, min_country_probability, sort_by, order, page, limit } = query
+    
+    let sqlQuery = 'SELECT * FROM profiles'
+    let param = []
+    let filterConditions = []
+    let paramIndex = 1
+
+    // Build filter conditions
+    if (gender) { 
+        filterConditions.push(`gender = $${paramIndex++}`)
+        param.push(gender.toLowerCase())
+    }
+
+    if (country_id) { 
+        filterConditions.push(`country_id = $${paramIndex++}`)
+        param.push(country_id.toUpperCase()) 
+    }
+
+    if (age_group) { 
+        filterConditions.push(`age_group = $${paramIndex++}`)
+        param.push(age_group.toLowerCase()) 
+    }
+
+    if (min_age) { 
+        filterConditions.push(`age >= $${paramIndex++}`)
+        param.push(min_age)
+    }
+
+    if (max_age) { 
+        filterConditions.push(`age <= $${paramIndex++}`)
+        param.push(max_age)
+    }
+
+    if (min_gender_probability) { 
+        filterConditions.push(`gender_probability >= $${paramIndex++}`)
+        param.push(min_gender_probability)
+    }
+
+    if (min_country_probability) { 
+        filterConditions.push(`country_probability >= $${paramIndex++}`)
+        param.push(min_country_probability)
+    }
+
+    if (filterConditions.length > 0) {
+        sqlQuery += ' WHERE ' + filterConditions.join(' AND ')
+    }
+
+    // Add ORDER BY clause (column names can't be parameterized)
+    if (sort_by && ['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
+        const orderDirection = (order && ['ASC', 'DESC'].includes(order.toUpperCase())) ? order.toUpperCase() : 'ASC'
+        sqlQuery += ` ORDER BY ${sort_by} ${orderDirection}`
+    }
+
+    try {
+
+        // Get the total count and data
+        // PostgreSQL: db.query() returns an object with a 'rows' array
+        const countResult = await db.query('SELECT COUNT(*) AS total FROM profiles')
+        const dataResult = await db.query(sqlQuery, param)
+
+        return {
+            data: dataResult.rows,  // Access the rows array from the result
+            message: 'successful'
+        }
+
+    } catch(err) {
+
+        throw new Error(`Data could not be retrieved: ${err.message}`)
+
+    }
+
+}
+
 export async function retrieveProfileDataBySearchParams(query) {
 
     const { q, page, limit } = query
