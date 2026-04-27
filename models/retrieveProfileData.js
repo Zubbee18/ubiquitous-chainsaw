@@ -1,7 +1,8 @@
 import { db } from "../db/openDBConnection.js"
 import { getCountryIdFromQuery } from "../util/getCountryIdFromQuery.js"
 
-export async function retrieveProfileDataByQueryParams(query) {
+
+export async function retrieveProfileDataByQueryParams(query, baseUrl = '/api/profiles') {
     
     const { gender, country_id, age_group, min_age, max_age, min_gender_probability, min_country_probability, sort_by, order, page, limit } = query
     
@@ -74,6 +75,9 @@ export async function retrieveProfileDataByQueryParams(query) {
         const totalEntries = parseInt(countResult.rows[0].total, 10)
         const totalPages = Math.ceil(totalEntries / currentLimit)
 
+        // Generate pagination links
+        const links = generatePaginationLinks(baseUrl, currentPage, totalPages, query)
+
         return {
             data: dataResult.rows,  // Access the rows array from the result
             pagination: {
@@ -82,6 +86,7 @@ export async function retrieveProfileDataByQueryParams(query) {
                 totalEntries: totalEntries,
                 totalPages: totalPages
             },
+            links: links,
             message: 'successful'
         }
 
@@ -168,7 +173,7 @@ export async function retrieveProfileDataForExport(query) {
 
 }
 
-export async function retrieveProfileDataBySearchParams(query) {
+export async function retrieveProfileDataBySearchParams(query, baseUrl = '/api/profiles/search') {
 
     const { q, page, limit } = query
     let sqlQuery = 'SELECT * FROM profiles'
@@ -249,6 +254,9 @@ export async function retrieveProfileDataBySearchParams(query) {
         const totalEntries = parseInt(countResult.rows[0].total, 10)
         const totalPages = Math.ceil(totalEntries / currentLimit)
 
+        // Generate pagination links
+        const links = generatePaginationLinks(baseUrl, currentPage, totalPages, query)
+
         return {
             data: dataResult.rows,  // Access the rows array from the result
             pagination: {
@@ -257,6 +265,7 @@ export async function retrieveProfileDataBySearchParams(query) {
                 totalEntries: totalEntries,
                 totalPages: totalPages
             },
+            links: links,
             message: 'successful'
         }
 
@@ -274,10 +283,53 @@ export async function retrieveProfileDataById(id) {
         // PostgreSQL: db.query() returns an object with a 'rows' array
         const result = await db.query(`SELECT * FROM profiles WHERE id=$1`, [id])
         return result.rows[0]  // Return first row or undefined
-
+        
     } catch(err) {
 
         throw new Error(`Error: ${err.message}`)
 
     }
+}
+
+// ==================== HELPER FUNCTIONS =========================
+// Helper function to build query strings from parameters
+function buildQueryString(params) {
+    const queryParts = []
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && value !== '') {
+            queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        }
+    }
+    return queryParts.join('&')
+}
+
+// Helper function to generate pagination links
+function generatePaginationLinks(baseUrl, currentPage, totalPages, queryParams) {
+    const links = {}
+    
+    // Helper to build a link for a specific page
+    const buildLink = (page) => {
+        const params = { ...queryParams, page }
+        const queryString = buildQueryString(params)
+        return `${baseUrl}?${queryString}`
+    }
+    
+    // Self link (current page)
+    links.self = buildLink(currentPage)
+    
+    // Previous link (only if not on first page)
+    if (currentPage > 1) {
+        links.prev = buildLink(currentPage - 1)
+    } else {
+        links.prev = null
+    }
+    
+    // Next link (only if not on last page)
+    if (currentPage < totalPages) {
+        links.next = buildLink(currentPage + 1)
+    } else {
+        links.next = null
+    }
+    
+    return links
 }

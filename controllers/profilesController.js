@@ -122,7 +122,6 @@ export function handlePostProfiles(req, res) {
 export async function exportProfiles(req, res) {
     try {
         const profileData = await retrieveProfileDataForExport(req.query)
-        console.log(profileData)
         
         if (profileData.data.length === 0) {
             return res.status(404).json({status: 'error', message: 'Profile not found'})
@@ -208,7 +207,7 @@ export async function handleGetProfilesByQueryParams(req, res) {
             
         } else {
             
-            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, data: profileData.data})
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, links: profileData.links, data: profileData.data})
         }
         
     } catch (err) {
@@ -239,7 +238,7 @@ export async function handleGetProfilesBySearchQueryParams(req, res) {
             
         } else {
             
-            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, data: profileData.data})
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, links: profileData.links, data: profileData.data})
         }
 
         
