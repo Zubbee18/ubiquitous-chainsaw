@@ -97,9 +97,9 @@ export function handlePostProfiles(req, res) {
                 // send json response
                 if (response.message === "Profile created successfully")
                 {
-                    res.status(201).json({status: "success", data: response.data}) 
+                    return res.status(201).json({status: "success", data: response.data}) 
                 } else {
-                    res.status(201).json({status: "success", message: response.message, data: response.data}) 
+                    return res.status(201).json({status: "success", message: response.message, data: response.data}) 
                 }
             }))
             
