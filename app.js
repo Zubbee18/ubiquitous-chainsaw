@@ -2,6 +2,7 @@ import cors from 'cors'
 import express from "express"
 import session from 'express-session'
 import cookieParser from 'cookie-parser'
+import redisClient from './db/redisClient.js'
 import { createUsersTable } from './db/createTable.js'
 import { authenticateUser } from './middlewares/authenticate.js'
 import { checkHeaderVersion } from './middlewares/checkHeader.js'
