@@ -152,13 +152,16 @@ export async function refreshToken(req, res) {
             process.env.JWT_SECRET, 
             { expiresIn: '3m' }
         )
-
+        
         // Issue a new Refresh Token
         const newRefreshToken = jwt.sign(
             { id: userId }, 
             process.env.REFRESH_SECRET, 
             { expiresIn: '5m' }
         )
+
+        // blacklist the old refresh token
+        await blacklistToken(decodedRefreshToken)
 
         // send to Web (HttpOnly Cookie) or CLI (JSON)
         res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
