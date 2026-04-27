@@ -1,10 +1,10 @@
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import axios from 'axios'
-import { checkUserExists, getUser } from '../models/userData.js'
 import { isTokenBlacklisted, 
         blacklistToken } from '../db/tokenBlacklist.js'
-import { checkUserExists, 
+import { getUser, 
+        checkUserExists, 
         getLoginUserFromId, 
         createAndLoginUser,
         logoutUserDB } from '../models/userData.js'
