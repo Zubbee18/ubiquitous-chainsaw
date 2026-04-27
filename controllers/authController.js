@@ -6,7 +6,8 @@ import { isTokenBlacklisted,
         blacklistToken } from '../db/tokenBlacklist.js'
 import { checkUserExists, 
         getLoginUserFromId, 
-        createAndLoginUser } from '../models/userData.js'
+        createAndLoginUser,
+        logoutUserDB } from '../models/userData.js'
 
 
 export function redirectUserToGitHub(req, res) {
@@ -145,7 +146,12 @@ export async function refreshToken(req, res) {
             
         }
         
+        
         // since user exists then issue new pair of tokens
+
+        // blacklist the old refresh token
+        await blacklistToken(refreshToken)
+
         // Issue a new Access Token
         const newAccessToken = jwt.sign(
             { id: userId }, 
@@ -160,15 +166,18 @@ export async function refreshToken(req, res) {
             { expiresIn: '5m' }
         )
 
-        // blacklist the old refresh token
-        await blacklistToken(decodedRefreshToken)
-
         // send to Web (HttpOnly Cookie) or CLI (JSON)
         res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
         .json({ status: "success", refreshToken: newRefreshToken, accessToken: newAccessToken })
 
     } catch (err) {
         
+        if (err.name === 'TokenExpiredError') {
+            console.log("Access Token expired at:", err.expiredAt)
+            return res.status(400).json({status: 'error', message: 'Refresh Token has expired'})
+
+        }
+
         res.status(403).send("Refresh token invalid")
     }
 }
@@ -178,11 +187,38 @@ export async function logoutUser(req, res) {
     const { refreshToken } = req.body
 
 
-    res.clearCookie('access_token', {
-        httpOnly: true,
-        secure: true, // Only if you used this when setting the cookie
-        sameSite: 'strict'
-    })
+    // blacklist the refresh token
+    await blacklistToken(refreshToken)
+    
+    try {
+        // check if it is expired and valid
+        const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
+        console.log("Token is valid:", decodedRefreshToken)
+
+        // get user id from token claims
+        const userId = decodedRefreshToken.id
+    
+        // change is_active to false
+        await logoutUserDB(userId)
+
+    } catch(err) {
+
+        if (err.name === 'TokenExpiredError') {
+            console.log("Access Token expired at:", err.expiredAt)
+            return res.status(400).json({status: 'error', message: 'Access Token has expired'})
+
+        }
+
+        console.log(err.message)
+        return res.status(500).json({status: 'error', message: 'Internal server error'})
+    }
+
+
+    // res.clearCookie('access_token', {
+    //     httpOnly: true,
+    //     secure: true,
+    //     sameSite: 'strict'
+    // })
     
     res.status(200).json({ message: 'Logged out successfully' })
 }

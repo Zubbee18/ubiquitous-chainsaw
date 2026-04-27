@@ -39,3 +39,8 @@ export async function createAndLoginUser(login, id, avatar_url, email) {
 
     return newUser.rows[0]
 }
+
+export async function logoutUserDB(userId) {
+
+    return await db.query(`UPDATE users SET is_active = FALSE WHERE id=$1`, [userId])
+}
