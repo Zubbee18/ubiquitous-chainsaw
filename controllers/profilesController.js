@@ -225,19 +225,15 @@ export async function handleGetProfilesBySearchQueryParams(req, res) {
         const profileData = await retrieveProfileDataBySearchParams(req.query)
     
         if (profileData.data.length === 0) {
-        
             res.status(404).json({status: 'error', message: 'Profile not found'})
             
         } else if (profileData.message === 'Unable to interpret query') {
-
             res.status(400).json({status: 'error', message: profileData.message})
             
         } else if (profileData.message === 'Invalid query parameters') {
-
             res.status(422).json({status: 'error', message: profileData.message})
             
         } else {
-            
             res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, links: profileData.links, data: profileData.data})
         }
 

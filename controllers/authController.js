@@ -286,13 +286,6 @@ export async function logoutUser(req, res) {
         console.log(err.message)
         return res.status(500).json({status: 'error', message: 'Internal server error'})
     }
-
-
-    // res.clearCookie('access_token', {
-    //     httpOnly: true,
-    //     secure: true,
-    //     sameSite: 'strict'
-    // })
     
     res.status(200).json({ message: 'Logged out successfully' })
 }
