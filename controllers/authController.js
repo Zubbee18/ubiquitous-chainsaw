@@ -81,7 +81,7 @@ export async function handleGitHubCallback(req, res) {
         }
         
         if (!email) {
-            res.status(400).send({status: error, message: "No email found"})
+            return res.status(400).json({status: 'error', message: "No email found"})
         }
         
         let insightaUser
@@ -159,7 +159,7 @@ export async function handleGitHubCliCallback(req, res) {
         }
         
         if (!email) {
-            res.status(400).send({status: error, message: "No email found"})
+            return res.status(400).json({status: 'error', message: "No email found"})
         }
         
         let insightaUser
@@ -193,8 +193,8 @@ export async function handleGitHubCliCallback(req, res) {
 
 
     } catch(err) {
-        console.log(err.message)
-        res.status(500).send('Authentication failed')
+        console.error('CLI Callback Error:', err)
+        res.status(500).json({ status: 'error', message: 'Authentication failed', details: err.message })
     }
 }
 
