@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "axios": "^1.15.2",
+    "connect-redis": "^9.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "country-codes-list": "^2.0.0",

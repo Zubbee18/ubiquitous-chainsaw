@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from "express"
+import RedisStore from 'connect-redis'
 import session from 'express-session'
 import cookieParser from 'cookie-parser'
 import redisClient from './db/redisClient.js'
@@ -20,10 +21,10 @@ app.use(cors())
 
 app.use(
     session({
+        store: new RedisStore({client: redisClient}),
         secret: process.env.SESSION_SECRET,
         resave: false,
-        saveUninitialized: false,
-        cookie: { secure: true }
+        saveUninitialized: false
     })
 )
 
