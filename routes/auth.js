@@ -12,7 +12,7 @@ export const authRouter = express.Router()
 authRouter.get('/github', redirectUserToGitHub)
 
 // github callback
-authRouter.get('/github/cli/callback', handleGitHubCliCallback)
+authRouter.post('/github/cli/callback', handleGitHubCliCallback)
 
 // github callback
 authRouter.get('/github/callback', handleGitHubCallback)

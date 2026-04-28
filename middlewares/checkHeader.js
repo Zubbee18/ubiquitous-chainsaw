@@ -10,7 +10,7 @@ export async function checkHeaderVersion(req, res, next) {
             })
     }
 
-    if (version !== '1') {
+    if (String(version) !== '1') {
         return res.status(400).json({
             "status": "error",
             "message": "Incorrect API version header"

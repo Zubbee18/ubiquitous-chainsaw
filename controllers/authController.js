@@ -294,7 +294,7 @@ export async function logoutUser(req, res) {
 // ======================= HELPER FUNCTIONS ====================================
 // generate code-verifier
 function generateVerifier() {
-    return crypto.randomBytes(32).toString('base64url');
+    return crypto.randomBytes(32).toString('base64url')
 }
 
 // generate code-challenger from verifier
@@ -302,6 +302,6 @@ function generateChallenge(verifier) {
     return crypto.createHash('sha256')
         .update(verifier)
         .digest()
-        .toString('base64url');
+        .toString('base64url')
 }
 
