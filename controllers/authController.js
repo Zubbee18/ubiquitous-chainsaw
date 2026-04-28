@@ -189,7 +189,7 @@ export async function handleGitHubCliCallback(req, res) {
     
         // send to Web (HttpOnly Cookie) or CLI (JSON)
         res.cookie('access_token', accessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ status: "success", access_token: accessToken, refresh_token: refreshToken })
+        .json({ status: "success", username: githubUser.login, access_token: accessToken, refresh_token: refreshToken })
 
 
     } catch(err) {
