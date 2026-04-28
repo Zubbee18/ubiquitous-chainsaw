@@ -6,12 +6,10 @@ export async function authenticateUser(req, res, next) {
     const accessToken = req.cookies.access_token
 
     if (!accessToken) {
-
         return res.status(400).json({status: 'error', message: 'No access token'})
     }
 
     try {
-
         // check if the token is expired or valid - if not, error
         const decodedAccessToken = jwt.verify(accessToken, process.env.JWT_SECRET)
         console.log("Token is valid:", decodedAccessToken)
@@ -30,14 +28,17 @@ export async function authenticateUser(req, res, next) {
         return res.status(401).json({status: 'error', message: 'User does not exist'})
 
     } catch(err) {
-
         if (err.name === 'TokenExpiredError') {
             console.log("Access Token expired at:", err.expiredAt)
             return res.status(400).json({status: 'error', message: 'Access Token has expired'})
 
         }
 
-        console.log(err.message)
+        console.log(err)
+        
+        if (err.message === 'invalid signature') {
+            return res.status(400).json({status: 'error', message: 'Invalid Access Token'})
+        }
         return res.status(500).json({status: 'error', message: 'Internal Server Error. Authentication Failed'})
     }
 }

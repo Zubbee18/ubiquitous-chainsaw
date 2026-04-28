@@ -39,8 +39,6 @@ app.use('/auth', authRouter)
 
 app.use('/api/classify', authenticateUser, classifyRouter)
 
-// middleware checkRole('admin') that decodes the 3-minute JWT 
-// and checks the role field before allowing POST /api/profiles
 app.use('/api/profiles', checkHeaderVersion, authenticateUser, profilesRouter)
 
 app.use((req, res) => {
