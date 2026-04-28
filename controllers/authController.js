@@ -8,6 +8,7 @@ import { getUser,
         getLoginUserFromId, 
         createAndLoginUser,
         logoutUserDB } from '../models/userData.js'
+import { access } from 'fs'
 
 
 export function redirectUserToGitHub(req, res) {
@@ -261,13 +262,18 @@ export async function refreshToken(req, res) {
 export async function logoutUser(req, res) {
 
     const { refresh_token } = req.body
+    const { access_token } = req.cookies
     
     try {
-        // check if it is expired and valid
+        // check if access/refresh token is expired and valid
         const decodedRefreshToken = jwt.verify(refresh_token, process.env.REFRESH_SECRET)
+        const decodedAccessToken = jwt.verify(access_token, process.env.JWT_SECRET)
         
         // blacklist the refresh token
         await blacklistToken(refresh_token, decodedRefreshToken)
+
+        // blacklist the access token
+        await blacklistToken(access_token, decodedAccessToken)
 
         // get user id from token claims
         const userId = decodedRefreshToken.id
@@ -276,7 +282,6 @@ export async function logoutUser(req, res) {
         await logoutUserDB(userId)
 
     } catch(err) {
-
         if (err.name === 'TokenExpiredError') {
             console.log("Access Token expired at:", err.expiredAt)
             return res.status(400).json({status: 'error', message: 'Access Token has expired'})

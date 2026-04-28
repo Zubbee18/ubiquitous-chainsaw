@@ -1,15 +1,16 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from "express"
-import { RedisStore } from 'connect-redis'
 import session from 'express-session'
 import cookieParser from 'cookie-parser'
+import { RedisStore } from 'connect-redis'
 import redisClient from './db/redisClient.js'
 import { createUsersTable } from './db/createTable.js'
 import { authenticateUser } from './middlewares/authenticate.js'
 import { checkHeaderVersion } from './middlewares/checkHeader.js'
 import { classifyRouter } from './routes/classifyRouter.js'
 import { profilesRouter } from './routes/profilesRouter.js'
+import { meRouter } from './routes/userRouter.js'
 import { createTable } from './db/createTable.js'
 import { authRouter } from './routes/auth.js'
 
@@ -46,6 +47,8 @@ app.use('/auth', authRouter)
 app.use('/api/classify', authenticateUser, classifyRouter)
 
 app.use('/api/profiles', checkHeaderVersion, authenticateUser, profilesRouter)
+
+app.use('/api/users/me', checkHeaderVersion, authenticateUser, meRouter)
 
 app.use((req, res) => {
     res.status(404).json({
