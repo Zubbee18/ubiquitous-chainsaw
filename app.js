@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import cors from 'cors'
 import express from "express"
-import RedisStore from 'connect-redis'
+import { RedisStore } from 'connect-redis'
 import session from 'express-session'
 import cookieParser from 'cookie-parser'
 import redisClient from './db/redisClient.js'
