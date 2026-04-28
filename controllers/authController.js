@@ -121,6 +121,83 @@ export async function handleGitHubCallback(req, res) {
     
 }
 
+export async function handleGitHubCliCallback(req, res) {
+    const { code, code_verifier } = req.body
+
+    try {
+
+        // trade code and verifier for Auth0 github tokens
+        const tokenResponse = await axios.post('https://github.com/login/oauth/access_token', {
+            client_id: process.env.GITHUB_CLIENT_ID,
+            client_secret: process.env.GITHUB_CLIENT_SECRET,
+            code: code,
+            code_verifier: code_verifier
+        }, {
+            headers: { Accept: 'application/json' }
+        })
+
+        const { access_token } = tokenResponse.data
+
+        // get user information
+        const githubUserInfo = await axios.get('https://api.github.com/user', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        })
+
+        const githubUser = githubUserInfo.data
+        const { login, id, avatar_url } = githubUser
+        let email = githubUser.email
+
+        if (!email) {
+
+            const emailResponse = await axios.get('https://api.github.com/user/emails', {
+                headers: { Authorization: `Bearer ${access_token}` }
+            })
+
+            // Find the primary email
+            const primaryEmail = emailResponse.data.find(email => email.primary)
+            email = primaryEmail ? primaryEmail.email : null
+        }
+        
+        if (!email) {
+            res.status(400).send({status: error, message: "No email found"})
+        }
+        
+        let insightaUser
+    
+        // check if the user already exists in the user table and add if it doesn't add user
+        if (await checkUserExists(id)) {
+            // get the user id and attach it to the session
+            insightaUser = await getLoginUserFromId(id)
+    
+        } else {
+            // add the user to the table
+            insightaUser = await createAndLoginUser(login, id, avatar_url, email)
+        }
+        
+        // generate tokens (3m and 5m expiries)
+        const accessToken = jwt.sign(
+            { id: insightaUser.id }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '3m' }
+        )
+
+        const refreshToken = jwt.sign(
+            { id: insightaUser.id }, 
+            process.env.REFRESH_SECRET, 
+            { expiresIn: '5m' }
+        )
+    
+        // send to Web (HttpOnly Cookie) or CLI (JSON)
+        res.cookie('access_token', accessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
+        .json({ status: "success", access_token: accessToken, refresh_token: refreshToken })
+
+
+    } catch(err) {
+        console.log(err.message)
+        res.status(500).send('Authentication failed')
+    }
+}
+
 export async function refreshToken(req, res) {
 
     const { refresh_token } = req.body

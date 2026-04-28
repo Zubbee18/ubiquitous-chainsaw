@@ -1,7 +1,8 @@
 import crypto from 'crypto'
 import express from 'express'
 import { redirectUserToGitHub, 
-        handleGitHubCallback, 
+        handleGitHubCallback,
+        handleGitHubCliCallback, 
         refreshToken,
         logoutUser } from '../controllers/authController.js'
 
@@ -9,6 +10,9 @@ export const authRouter = express.Router()
 
 // for the auth with github endpoint
 authRouter.get('/github', redirectUserToGitHub)
+
+// github callback
+authRouter.get('/github/cli/callback', handleGitHubCliCallback)
 
 // github callback
 authRouter.get('/github/callback', handleGitHubCallback)
