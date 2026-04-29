@@ -14,6 +14,8 @@ Node.js Express API for profile management with GitHub OAuth authentication, nat
 - [Token Handling](#token-handling)
 - [Role Enforcement](#role-enforcement)
 - [Natural Language Parsing](#natural-language-parsing)
+- [Rate Limiting](#rate-limiting)
+- [Request Logging](#request-logging)
 - [CLI Usage](#cli-usage)
 - [API Endpoints](#api-endpoints)
 - [Setup](#setup)
@@ -98,6 +100,49 @@ Node.js Express API for profile management with GitHub OAuth authentication, nat
 **Example:** "adult males from kenya" → `WHERE gender='male' AND age_group='adult' AND country_id='KE'`
 
 **Limitations:** Fixed keywords only, no synonyms, AND logic only, single age group per query
+
+## Rate Limiting
+
+**Redis-backed rate limiting via `express-rate-limit` + `rate-limit-redis`:**
+
+| Limiter       | Applies To                                     | Window | Limit       |
+| ------------- | ---------------------------------------------- | ------ | ----------- |
+| `authLimiter` | `/auth/*`                                      | 1 min  | 10 requests |
+| `apiLimiter`  | `/api/classify`, `/api/profiles`, `/api/users` | 1 min  | 60 requests |
+
+**Configuration:**
+
+- Headers: `RateLimit` standard headers (draft-8), legacy `X-RateLimit-*` headers disabled
+- IPv6: `/56` subnet grouping to prevent subnet-hopping abuse
+- Redis key prefixes: `rl:auth:` and `rl:api:` (shares the existing Redis connection)
+- Exceeded limit returns `429` with JSON body:
+  ```json
+  {
+    "error": "Too Many Requests",
+    "message": "Rate limit exceeded. Try again in 1 minute."
+  }
+  ```
+
+**Implementation:** `middlewares/rateLimit.js`
+
+## Request Logging
+
+**Inline middleware in `app.js` logs every completed request to stdout:**
+
+```
+METHOD /path STATUS DURATIONms
+```
+
+Example:
+
+```
+GET /api/profiles 200 42ms
+POST /auth/github/cli/callback 401 8ms
+```
+
+- Timing starts on request arrival; duration is measured on the `finish` event of the response
+- Logs method, full URL (including query string), status code, and response time
+- No external logging library — uses `console.log` for simplicity
 
 ## CLI Usage
 
@@ -215,6 +260,6 @@ npm start                         # Start API server
 
 ---
 
-**Tech Stack:** Node.js, Express, PostgreSQL, Redis, JWT, Axios, GitHub OAuth, UUID v7  
+**Tech Stack:** Node.js, Express 5, PostgreSQL, Redis, JWT, Axios, GitHub OAuth, UUID v13, cookie-parser, express-session (Redis-backed), express-rate-limit + rate-limit-redis, json2csv, country-codes-list  
 **External APIs:** Genderize.io, Agify.io, Nationalize.io, REST Countries  
 **CLI:** Commander, Axios, cli-table3, Ora spinner, Open (browser launch)
