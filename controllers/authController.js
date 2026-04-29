@@ -110,9 +110,22 @@ export async function handleGitHubCallback(req, res) {
             { expiresIn: '5m' }
         )
     
-        // send to Web (HttpOnly Cookie) or CLI (JSON)
-        res.cookie('access_token', accessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ status: "success", access_token: accessToken, refresh_token: refreshToken })
+        // Cookie options: secure only in production, lax sameSite for cross-origin in dev
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+        }
+    
+        // Set both tokens as HTTP-only cookies
+        res.cookie('access_token', accessToken, cookieOptions)
+        res.cookie('refresh_token', refreshToken, cookieOptions)
+        
+        // Redirect to dashboard (no tokens exposed to client)
+        const redirectUrl = req.get('Referer') 
+            ? new URL(req.get('Referer')).origin + '/dashboard.html'
+            : (process.env.FRONTEND_URL || 'http://localhost:5500/dashboard.html')
+        res.redirect(redirectUrl)
 
 
     } catch(err) {
@@ -188,9 +201,21 @@ export async function handleGitHubCliCallback(req, res) {
             { expiresIn: '5m' }
         )
     
-        // send to Web (HttpOnly Cookie) or CLI (JSON)
-        res.cookie('access_token', accessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ status: "success", username: githubUser.login, access_token: accessToken, refresh_token: refreshToken })
+        // Cookie options: secure only in production, lax sameSite for cross-origin in dev
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+        }
+    
+        // CLI: Set access_token in cookie and return both tokens in JSON
+        res.cookie('access_token', accessToken, cookieOptions)
+        res.json({ 
+            status: "success", 
+            username: githubUser.login, 
+            access_token: accessToken, 
+            refresh_token: refreshToken 
+        })
 
 
     } catch(err) {
@@ -201,7 +226,12 @@ export async function handleGitHubCliCallback(req, res) {
 
 export async function refreshToken(req, res) {
 
-    const { refresh_token } = req.body
+    // Get refresh token from body (CLI) or cookie (Web)
+    const refresh_token = req.body.refresh_token || req.cookies.refresh_token
+    
+    if (!refresh_token) {
+        return res.status(400).json({status: 'error', message: 'No refresh token provided'})
+    }
     
     // Verify refresh token
     try {
@@ -242,9 +272,23 @@ export async function refreshToken(req, res) {
             { expiresIn: '5m' }
         )
 
-        // send to Web (HttpOnly Cookie) or CLI (JSON)
-        res.cookie('access_token', newAccessToken, { httpOnly: true, secure: true, sameSite: 'strict' })
-        .json({ status: "success", refresh_token: newRefreshToken, access_token: newAccessToken })
+        // Cookie options: secure only in production, lax sameSite for cross-origin in dev
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+        }
+
+        // Set both tokens as HTTP-only cookies
+        res.cookie('access_token', newAccessToken, cookieOptions)
+        res.cookie('refresh_token', newRefreshToken, cookieOptions)
+        
+        // Return tokens in JSON (for CLI) or just success (for web)
+        res.json({ 
+            status: "success", 
+            refresh_token: newRefreshToken, 
+            access_token: newAccessToken 
+        })
 
     } catch (err) {
         
@@ -261,7 +305,8 @@ export async function refreshToken(req, res) {
 
 export async function logoutUser(req, res) {
 
-    const { refresh_token } = req.body
+    // Get refresh token from body (CLI) or cookie (Web)
+    const refresh_token = req.body.refresh_token || req.cookies.refresh_token
     const { access_token } = req.cookies
     
     try {
@@ -281,11 +326,17 @@ export async function logoutUser(req, res) {
         // change is_active to false
         await logoutUserDB(userId)
 
+        // Clear both cookies
+        res.clearCookie('access_token')
+        res.clearCookie('refresh_token')
+
     } catch(err) {
         if (err.name === 'TokenExpiredError') {
-            console.log("Access Token expired at:", err.expiredAt)
-            return res.status(400).json({status: 'error', message: 'Access Token has expired'})
-
+            console.log("Token expired at:", err.expiredAt)
+            // Even if tokens are expired, clear both cookies
+            res.clearCookie('access_token')
+            res.clearCookie('refresh_token')
+            return res.status(200).json({ message: 'Logged out successfully' })
         }
 
         console.log(err.message)

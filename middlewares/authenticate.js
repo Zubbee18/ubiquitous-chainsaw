@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { getUser, checkUserExists } from "../models/userData.js"
+import { isTokenBlacklisted, blacklistToken } from '../db/tokenBlacklist.js'
 
 export async function authenticateUser(req, res, next) {
 
@@ -30,6 +31,71 @@ export async function authenticateUser(req, res, next) {
     } catch(err) {
         if (err.name === 'TokenExpiredError') {
             console.log("Access Token expired at:", err.expiredAt)
+            
+            // Try to refresh token automatically for web clients (using cookie)
+            if (req.cookies.refresh_token) {
+                try {
+                    const refreshToken = req.cookies.refresh_token
+                    
+                    // Check if refresh token is blacklisted
+                    if (await isTokenBlacklisted(refreshToken)) {
+                        return res.status(401).json({status: 'error', message: 'Session expired. Please log in again.'})
+                    }
+                    
+                    // Verify refresh token
+                    const decodedRefreshToken = jwt.verify(refreshToken, process.env.REFRESH_SECRET)
+                    const userId = decodedRefreshToken.id
+                    
+                    // Check if user exists
+                    if (!await checkUserExists(userId, false)) {
+                        return res.status(401).json({status: 'error', message: 'User does not exist'})
+                    }
+                    
+                    // Blacklist old tokens
+                    await blacklistToken(refreshToken, decodedRefreshToken)
+                    if (accessToken) {
+                        try {
+                            const oldDecoded = jwt.decode(accessToken)
+                            await blacklistToken(accessToken, oldDecoded)
+                        } catch (e) {
+                            // Ignore if token can't be decoded
+                        }
+                    }
+                    
+                    // Issue new tokens
+                    const newAccessToken = jwt.sign(
+                        { id: userId }, 
+                        process.env.JWT_SECRET, 
+                        { expiresIn: '3m' }
+                    )
+                    
+                    const newRefreshToken = jwt.sign(
+                        { id: userId }, 
+                        process.env.REFRESH_SECRET, 
+                        { expiresIn: '5m' }
+                    )
+                    
+                    // Set new tokens as HTTP-only cookies
+                    const cookieOptions = {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+                    }
+                    res.cookie('access_token', newAccessToken, cookieOptions)
+                    res.cookie('refresh_token', newRefreshToken, cookieOptions)
+                    
+                    // Attach user and continue
+                    req.user = await getUser(userId)
+                    console.log("Token auto-refreshed for web client")
+                    return next()
+                    
+                } catch (refreshErr) {
+                    console.log("Auto-refresh failed:", refreshErr.message)
+                    return res.status(401).json({status: 'error', message: 'Refresh token expired. Please log in again.'})
+                }
+            }
+            
+            // For CLI or when no refresh token in cookie, return error
             return res.status(400).json({status: 'error', message: 'Access Token has expired'})
 
         }
