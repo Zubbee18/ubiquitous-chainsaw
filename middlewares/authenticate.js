@@ -3,11 +3,18 @@ import { getUser, checkUserExists } from "../models/userData.js";
 import { isTokenBlacklisted, blacklistToken } from "../db/tokenBlacklist.js";
 
 export async function authenticateUser(req, res, next) {
-  const accessToken = req.cookies.access_token;
+  // Support both cookie and Authorization: Bearer <token> header
+  let accessToken = req.cookies.access_token;
+  if (!accessToken) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      accessToken = authHeader.slice(7);
+    }
+  }
 
   if (!accessToken) {
     return res
-      .status(400)
+      .status(401)
       .json({ status: "error", message: "No access token" });
   }
 
@@ -110,20 +117,15 @@ export async function authenticateUser(req, res, next) {
 
       // For CLI or when no refresh token in cookie, return error
       return res
-        .status(400)
+        .status(401)
         .json({ status: "error", message: "Access Token has expired" });
     }
 
     console.log(err);
-
-    if (err.message === "invalid signature") {
-      return res
-        .status(400)
-        .json({ status: "error", message: "Invalid Access Token" });
-    }
-    return res.status(500).json({
+    // Any other JWT error (invalid signature, malformed token, etc.) → 401
+    return res.status(401).json({
       status: "error",
-      message: "Internal Server Error. Authentication Failed",
+      message: "Invalid Access Token",
     });
   }
 }

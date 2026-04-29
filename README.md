@@ -13,6 +13,7 @@ Node.js Express API for profile management with GitHub OAuth authentication, nat
 - [Authentication Flow](#authentication-flow)
 - [Token Handling](#token-handling)
 - [Role Enforcement](#role-enforcement)
+- [Multi-Interface Support](#multi-interface-support)
 - [Natural Language Parsing](#natural-language-parsing)
 - [Rate Limiting](#rate-limiting)
 - [Request Logging](#request-logging)
@@ -35,24 +36,34 @@ Node.js Express API for profile management with GitHub OAuth authentication, nat
 
 **GitHub OAuth 2.0 with PKCE:**
 
-1. **Web Portal:** User clicks login → Redirect to GitHub → GitHub callback → Backend sets HTTP-only cookies (access_token 3min, refresh_token 5min) → Redirect to dashboard
-2. **CLI:** `insighta login` → Opens browser → GitHub callback → CLI captures code → POST to backend with PKCE verifier → Receive tokens in JSON → Store in `~/.insighta/credentials.json`
+1. **Web Portal:** User clicks login → Redirect to GitHub → GitHub callback → Backend sets HTTP-only cookies (`access_token` 3 min, `refresh_token` 5 min) → Redirect to dashboard
+2. **CLI:** `insighta login` → Opens browser → GitHub OAuth → CLI captures code → POST to `/auth/github/cli/callback` with PKCE verifier → Receive `access_token` + `refresh_token` in JSON → Stored in `~/.insighta/credentials.json`
+
+**Token transport per client:**
+
+| Client     | How token is sent                                                               |
+| ---------- | ------------------------------------------------------------------------------- |
+| Web Portal | HTTP-only cookie (`access_token`)                                               |
+| CLI Tool   | `Authorization: Bearer <token>` header OR `Cookie: access_token=<token>` header |
+
+The `authenticateUser` middleware checks the cookie first; if absent it falls back to the `Authorization: Bearer` header. This allows both browser-based and CLI/programmatic clients to authenticate with the same API.
 
 **Security:**
 
 - PKCE prevents code interception attacks
-- State parameter prevents CSRF
-- HTTP-only cookies prevent XSS
-- Token blacklisting in Redis prevents reuse
+- State parameter validated on every OAuth callback; missing/mismatched state returns `403`
+- HTTP-only cookies prevent XSS token theft
+- Token blacklisting in Redis prevents token reuse after logout or refresh
+- Session cookie (`connect.sid`) is set `HttpOnly` and `Secure` in production
 
 ## Token Handling
 
 **Dual Token Strategy (JWT):**
 
-| Token   | Lifetime | Storage          | Purpose            |
-| ------- | -------- | ---------------- | ------------------ |
-| Access  | 3 min    | HTTP-only cookie | API authentication |
-| Refresh | 5 min    | HTTP-only cookie | Token renewal      |
+| Token   | Lifetime | Storage (Web)    | Storage (CLI)                  | Purpose            |
+| ------- | -------- | ---------------- | ------------------------------ | ------------------ |
+| Access  | 3 min    | HTTP-only cookie | `~/.insighta/credentials.json` | API authentication |
+| Refresh | 5 min    | HTTP-only cookie | `~/.insighta/credentials.json` | Token renewal      |
 
 **Auto-Refresh Flow:**
 
@@ -62,20 +73,68 @@ Node.js Express API for profile management with GitHub OAuth authentication, nat
 4. Issues new access + refresh tokens
 5. Continues request seamlessly
 
-**Implementation:** `middlewares/authenticate.js` verifies JWT, handles refresh logic, attaches `req.user`
+**Implementation:** `middlewares/authenticate.js` verifies JWT on every API request. Supports both HTTP-only cookies (web portal) and `Authorization: Bearer <token>` header (CLI / programmatic access). Handles auto-refresh transparently for cookie-based clients.
 
 ## Role Enforcement
 
 **RBAC System:**
 
-- **user** (default): View/create profiles
-- **admin**: Full access including user management, deletion
+- **admin** (first registered user): Full access — create/delete profiles, export CSV, list/delete users
+- **analyst** (all subsequent users): Read-only — list/view profiles, natural-language search, classify names
 
-**Database:** Role stored in `users.role` column (VARCHAR, default 'user')
+**Database:** Role stored in `users.role` column (VARCHAR). First user registered via GitHub OAuth receives `admin`; every subsequent user receives `analyst`.
 
-**Middleware:** `middlewares/adminAccess.js` checks `req.user.role === 'admin'`, returns 403 if unauthorized
+**Middleware:** `middlewares/adminAccess.js` checks `req.user.role === 'admin'`, returns `403 Forbidden` if the requesting user is not an admin.
 
-**Protected Endpoints:** DELETE `/api/users/:id`, GET `/api/users/` (admin only)
+**Protected Endpoints (admin only):**
+
+- `POST /api/profiles` — create a profile
+- `DELETE /api/profiles/:id` — delete a profile
+- `GET /api/profiles/export` — export profiles as CSV
+- `GET /api/users` — list all users
+- `DELETE /api/users/:id` — delete a user
+
+**Analyst-accessible Endpoints:**
+
+- `GET /api/profiles` — list profiles with filters
+- `GET /api/profiles/search` — natural-language search
+- `GET /api/profiles/:id` — get a single profile
+- `GET /api/classify` — name classification
+- `GET /api/users/me` — own user info
+
+## Multi-Interface Support
+
+The API is designed to work identically from both the **Web Portal** (browser) and the **CLI Tool** (Node.js), and supports direct programmatic access.
+
+### Required Headers
+
+Every request to `/api/profiles` and `/api/users` must include:
+
+| Header          | Value | Purpose                 |
+| --------------- | ----- | ----------------------- |
+| `X-API-Version` | `1`   | API versioning contract |
+
+Missing or incorrect version returns `400 Bad Request`.
+
+### Authentication Methods
+
+| Client       | Method                                                        |
+| ------------ | ------------------------------------------------------------- |
+| Web Portal   | `Cookie: access_token=<jwt>` (set automatically by browser)   |
+| CLI Tool     | `Cookie: access_token=<jwt>` OR `Authorization: Bearer <jwt>` |
+| Programmatic | `Authorization: Bearer <jwt>`                                 |
+
+### Invalid Token Handling
+
+Any request with a missing, malformed, expired (without a valid refresh token), or incorrectly-signed token is rejected with `401 Unauthorized`.
+
+### Web Portal Integration
+
+The web portal at `https://insighta-web-portal-production.up.railway.app` sends every API request through `js/api.js` (an `axios` instance) with `withCredentials: true` and `X-API-Version: 1` set by default. Token refresh is handled transparently via a response interceptor.
+
+### CLI Integration
+
+The CLI tool (`cli-tool/`) reads tokens from `~/.insighta/credentials.json` and sends them as `Cookie: access_token=<token>` alongside `x-api-version: 1`. When the server returns a token-expiry signal the CLI calls `/auth/refresh` automatically before retrying the request.
 
 ## Natural Language Parsing
 

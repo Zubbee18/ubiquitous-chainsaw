@@ -40,7 +40,7 @@ export function redirectUserToGitHub(req, res) {
 export async function handleGitHubCallback(req, res) {
   const { code, state } = req.query;
 
-  if (state !== req.session.state) {
+  if (!state || !req.session.state || state !== req.session.state) {
     return res.status(403).send("State mismatch. Potential CSRF attack.");
   }
 
@@ -313,19 +313,30 @@ export async function refreshToken(req, res) {
     if (err.name === "TokenExpiredError") {
       console.log("Access Token expired at:", err.expiredAt);
       return res
-        .status(400)
+        .status(401)
         .json({ status: "error", message: "Refresh Token has expired" });
     }
 
     console.log(err);
-    res.status(403).send("Refresh token invalid");
+    res.status(401).json({ status: "error", message: "Refresh token invalid" });
   }
 }
 
 export async function logoutUser(req, res) {
   // Get refresh token from body (CLI) or cookie (Web)
   const refresh_token = req.body.refresh_token || req.cookies.refresh_token;
-  const { access_token } = req.cookies;
+  const access_token =
+    req.body.access_token ||
+    req.cookies.access_token ||
+    (req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.slice(7)
+      : null);
+
+  if (!refresh_token) {
+    return res
+      .status(400)
+      .json({ status: "error", message: "No refresh token provided" });
+  }
 
   try {
     // check if access/refresh token is expired and valid

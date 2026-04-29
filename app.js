@@ -35,6 +35,11 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    },
   }),
 );
 
@@ -64,16 +69,16 @@ app.use("/api/classify", apiLimiter, authenticateUser, classifyRouter);
 app.use(
   "/api/profiles",
   apiLimiter,
-  checkHeaderVersion,
   authenticateUser,
+  checkHeaderVersion,
   profilesRouter,
 );
 
 app.use(
   "/api/users",
   apiLimiter,
-  checkHeaderVersion,
   authenticateUser,
+  checkHeaderVersion,
   usersRouter,
 );
 
