@@ -11,7 +11,7 @@
     "npm": "11.9.0"
   },
   "scripts": {
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/*.test.js",
     "lint": "eslint .",
     "start": "node app.js",
     "dev": "nodemon app.js"
