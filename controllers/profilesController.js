@@ -175,7 +175,7 @@ export async function handleGetProfilesByQueryParams(req, res) {
         page: profileData.pagination.currentPage,
         limit: profileData.pagination.pageLimit,
         total: profileData.pagination.totalEntries,
-        total_pages: profileData.totalPages,
+        total_pages: profileData.pagination.totalPages,
         links: profileData.links,
         data: profileData.data,
       });
@@ -202,7 +202,7 @@ export async function handleGetProfilesBySearchQueryParams(req, res) {
         page: profileData.pagination.currentPage,
         limit: profileData.pagination.pageLimit,
         total: profileData.pagination.totalEntries,
-        total_pages: profileData.totalPages,
+        total_pages: profileData.pagination.totalPages,
         links: profileData.links,
         data: profileData.data,
       });
