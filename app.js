@@ -19,9 +19,15 @@ const PORT = process.env.PORT;
 
 const app = express();
 
-app.set("trust proxy", 1);
-
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || [
+      "http://localhost:5500",
+      "http://127.0.0.1:5500",
+    ],
+    credentials: true,
+  }),
+);
 
 app.use(
   session({
@@ -34,6 +40,7 @@ app.use(
 
 await createUsersTable();
 
+// Middleware to parse JSON bodies
 app.use(express.json());
 
 app.use(cookieParser());
