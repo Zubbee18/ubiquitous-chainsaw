@@ -69,7 +69,16 @@ export async function exportProfiles(req, res) {
         const profileData = await retrieveProfileDataForExport(req.query)
         
         if (profileData.data.length === 0) {
-            return res.status(404).json({status: 'error', message: 'Profile not found'})
+            res.status(404).json({status: 'error', message: 'Profile not found'})
+            
+        } else if (profileData.message === 'Unable to interpret query') {
+            res.status(400).json({status: 'error', message: profileData.message})
+            
+        } else if (profileData.message === 'Invalid query parameters') {
+            res.status(422).json({status: 'error', message: profileData.message})
+            
+        } else {
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, total_pages: profileData.totalPages, links: profileData.links, data: profileData.data})
         }
         
         // Check if CSV format is requested
@@ -146,12 +155,16 @@ export async function handleGetProfilesByQueryParams(req, res) {
         const profileData = await retrieveProfileDataByQueryParams(req.query)
     
         if (profileData.data.length === 0) {
-    
             res.status(404).json({status: 'error', message: 'Profile not found'})
             
-        } else {
+        } else if (profileData.message === 'Unable to interpret query') {
+            res.status(400).json({status: 'error', message: profileData.message})
             
-            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, links: profileData.links, data: profileData.data})
+        } else if (profileData.message === 'Invalid query parameters') {
+            res.status(422).json({status: 'error', message: profileData.message})
+            
+        } else {
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, total_pages: profileData.totalPages, links: profileData.links, data: profileData.data})
         }
         
     } catch (err) {
@@ -178,7 +191,7 @@ export async function handleGetProfilesBySearchQueryParams(req, res) {
             res.status(422).json({status: 'error', message: profileData.message})
             
         } else {
-            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, links: profileData.links, data: profileData.data})
+            res.status(200).json({status: 'success', page: profileData.pagination.currentPage, limit: profileData.pagination.pageLimit, total: profileData.pagination.totalEntries, total_pages: profileData.totalPages, links: profileData.links, data: profileData.data})
         }
 
         

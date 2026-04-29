@@ -55,6 +55,11 @@ export async function retrieveProfileDataByQueryParams(query, baseUrl = '/api/pr
     if (sort_by && ['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
         const orderDirection = (order && ['ASC', 'DESC'].includes(order.toUpperCase())) ? order.toUpperCase() : 'ASC'
         sqlQuery += ` ORDER BY ${sort_by} ${orderDirection}`
+
+    } else if (sort_by && !['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
+        return {
+            message: 'Invalid query parameters'
+        }
     }
 
     // Add pagination
@@ -100,7 +105,9 @@ export async function retrieveProfileDataByQueryParams(query, baseUrl = '/api/pr
 
 export async function retrieveProfileDataForExport(query) {
     
-    const { gender, country_id, age_group, min_age, max_age, min_gender_probability, min_country_probability, sort_by, order, page, limit } = query
+    const { gender, country_id, age_group, min_age, max_age, 
+            min_gender_probability, min_country_probability, 
+            sort_by, order, page, limit } = query
     
     let sqlQuery = 'SELECT * FROM profiles'
     let param = []
@@ -151,6 +158,11 @@ export async function retrieveProfileDataForExport(query) {
     if (sort_by && ['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
         const orderDirection = (order && ['ASC', 'DESC'].includes(order.toUpperCase())) ? order.toUpperCase() : 'ASC'
         sqlQuery += ` ORDER BY ${sort_by} ${orderDirection}`
+
+    } else if (sort_by && !['age', 'created_at', 'gender_probability'].includes(sort_by)) { 
+        return {
+            message: 'Invalid query parameters'
+        }
     }
 
     try {
@@ -184,16 +196,23 @@ export async function retrieveProfileDataBySearchParams(query, baseUrl = '/api/p
     // get by search parameters
     if (q) {
 
+        const lowerQuery = q.toLowerCase()
+
         // check for gender
-        if (q.toLowerCase().includes('male')) {
-            if (q.toLowerCase().includes('female')) {
-                conditions.push(`gender = $${paramIndex++}`)
-                param.push('female')
-            } else {
-                conditions.push(`gender = $${paramIndex++}`)
-                param.push('male')
-            }
+        // if both "male" and "female" are mentioned, don't filter by gender
+        const hasMale = lowerQuery.includes('male')
+        const hasFemale = lowerQuery.includes('female')
+        
+        if (hasFemale && !hasMale) {
+            // Only "female" mentioned
+            conditions.push(`gender = $${paramIndex++}`)
+            param.push('female')
+        } else if (hasMale && !hasFemale) {
+            // Only "male" mentioned (but not "female")
+            conditions.push(`gender = $${paramIndex++}`)
+            param.push('male')
         }
+        // If both or neither are mentioned, don't add gender filter
 
         // check for country_id
         const countryId = await getCountryIdFromQuery(q)
@@ -203,16 +222,16 @@ export async function retrieveProfileDataBySearchParams(query, baseUrl = '/api/p
         }
 
         // check for age_group
-        if (q.toLowerCase().includes('adult') || q.toLowerCase().includes('child') || q.toLowerCase().includes('teenager') || q.toLowerCase().includes('senior')) {
+        if (lowerQuery.includes('adult') || lowerQuery.includes('child') || lowerQuery.includes('teenager') || lowerQuery.includes('senior')) {
             let age_group = ''
             
-            if (q.toLowerCase().includes('senior')) {
+            if (lowerQuery.includes('senior')) {
                 age_group = 'senior'
-            } else if (q.toLowerCase().includes('teenager')) {
+            } else if (lowerQuery.includes('teenager')) {
                 age_group = 'teenager'
-            } else if (q.toLowerCase().includes('adult')) {
+            } else if (lowerQuery.includes('adult')) {
                 age_group = 'adult'
-            } else if (q.toLowerCase().includes('child')) {
+            } else if (lowerQuery.includes('child')) {
                 age_group = 'child'
             }
 
@@ -220,6 +239,31 @@ export async function retrieveProfileDataBySearchParams(query, baseUrl = '/api/p
                 conditions.push(`age_group = $${paramIndex++}`)
                 param.push(age_group)
             }
+        }
+
+        // check for "young" keyword → maps to ages 16-24
+        if (lowerQuery.includes('young')) {
+            conditions.push(`age >= $${paramIndex++}`)
+            param.push(16)
+            conditions.push(`age <= $${paramIndex++}`)
+            param.push(24)
+        }
+
+        // check for age expressions like "above X", "below X", "under X", "over X"
+        // Pattern: "above/over/below/under" followed by a number
+        const aboveMatch = lowerQuery.match(/(?:above|over)\s+(\d+)/)
+        const belowMatch = lowerQuery.match(/(?:below|under)\s+(\d+)/)
+        
+        if (aboveMatch) {
+            const minAge = parseInt(aboveMatch[1])
+            conditions.push(`age >= $${paramIndex++}`)
+            param.push(minAge)
+        }
+        
+        if (belowMatch) {
+            const maxAge = parseInt(belowMatch[1])
+            conditions.push(`age <= $${paramIndex++}`)
+            param.push(maxAge)
         }
 
         // check if the query matches any of the above
