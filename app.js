@@ -48,7 +48,7 @@ app.use('/api/classify', authenticateUser, classifyRouter)
 
 app.use('/api/profiles', checkHeaderVersion, authenticateUser, profilesRouter)
 
-app.use('/api/users', checkHeaderVersion, authenticateUser, meRouter)
+app.use('/api/users', checkHeaderVersion, authenticateUser, usersRouter)
 
 app.use((req, res) => {
     res.status(404).json({
