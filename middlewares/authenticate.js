@@ -67,8 +67,8 @@ export async function authenticateUser(req, res, next) {
             try {
               const oldDecoded = jwt.decode(accessToken);
               await blacklistToken(accessToken, oldDecoded);
-            } catch (e) {
-              // Ignore if token can't be decoded
+            } catch (err) {
+              throw new Error("Token cannot be decoded", err);
             }
           }
 
