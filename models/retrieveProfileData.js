@@ -60,9 +60,14 @@ export async function retrieveProfileDataByQueryParams(
     param.push(min_country_probability);
   }
 
-  if (filterConditions.length > 0) {
-    sqlQuery += " WHERE " + filterConditions.join(" AND ");
-  }
+  const whereClause =
+    filterConditions.length > 0
+      ? " WHERE " + filterConditions.join(" AND ")
+      : "";
+  sqlQuery += whereClause;
+
+  // Capture filter params before appending LIMIT/OFFSET params
+  const filterParams = [...param];
 
   // Add ORDER BY clause (column names can't be parameterized)
   if (
@@ -92,10 +97,10 @@ export async function retrieveProfileDataByQueryParams(
   param.push(currentLimit, offset);
 
   try {
-    // Get the total count and data
-    // PostgreSQL: db.query() returns an object with a 'rows' array
+    // Count only rows matching the active filters
     const countResult = await db.query(
-      "SELECT COUNT(*) AS total FROM profiles",
+      `SELECT COUNT(*) AS total FROM profiles${whereClause}`,
+      filterParams,
     );
     const dataResult = await db.query(sqlQuery, param);
 
@@ -111,7 +116,7 @@ export async function retrieveProfileDataByQueryParams(
     );
 
     return {
-      data: dataResult.rows, // Access the rows array from the result
+      data: dataResult.rows,
       pagination: {
         currentPage: currentPage,
         pageLimit: currentLimit,
@@ -137,8 +142,6 @@ export async function retrieveProfileDataForExport(query) {
     min_country_probability,
     sort_by,
     order,
-    page,
-    limit,
   } = query;
 
   let sqlQuery = "SELECT * FROM profiles";
@@ -206,15 +209,10 @@ export async function retrieveProfileDataForExport(query) {
   }
 
   try {
-    // Get the total count and data
-    // PostgreSQL: db.query() returns an object with a 'rows' array
-    const countResult = await db.query(
-      "SELECT COUNT(*) AS total FROM profiles",
-    );
     const dataResult = await db.query(sqlQuery, param);
 
     return {
-      data: dataResult.rows, // Access the rows array from the result
+      data: dataResult.rows,
       message: "successful",
     };
   } catch (err) {
@@ -328,6 +326,11 @@ export async function retrieveProfileDataBySearchParams(
     };
   }
 
+  // Capture filter params before appending LIMIT/OFFSET params
+  const filterParams = [...param];
+  const whereClause =
+    conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
+
   // Add pagination
   const currentPage = parseInt(page) || 1;
   const currentLimit = Math.min(parseInt(limit) || 10, 50);
@@ -337,10 +340,10 @@ export async function retrieveProfileDataBySearchParams(
   param.push(currentLimit, offset);
 
   try {
-    // Get the total count and data
-    // PostgreSQL: db.query() returns an object with a 'rows' array
+    // Count only rows matching the search conditions
     const countResult = await db.query(
-      "SELECT COUNT(*) AS total FROM profiles",
+      `SELECT COUNT(*) AS total FROM profiles${whereClause}`,
+      filterParams,
     );
     const dataResult = await db.query(sqlQuery, param);
 
@@ -356,7 +359,7 @@ export async function retrieveProfileDataBySearchParams(
     );
 
     return {
-      data: dataResult.rows, // Access the rows array from the result
+      data: dataResult.rows,
       pagination: {
         currentPage: currentPage,
         pageLimit: currentLimit,
