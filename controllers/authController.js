@@ -103,13 +103,13 @@ export async function handleGitHubCallback(req, res) {
 
     // generate tokens (3m and 5m expiries)
     const accessToken = jwt.sign(
-      { id: insightaUser.id },
+      { id: insightaUser.id, role: insightaUser.role },
       process.env.JWT_SECRET,
       { expiresIn: "3m" },
     );
 
     const refreshToken = jwt.sign(
-      { id: insightaUser.id },
+      { id: insightaUser.id, role: insightaUser.role },
       process.env.REFRESH_SECRET,
       { expiresIn: "5m" },
     );
@@ -197,13 +197,13 @@ export async function handleGitHubCliCallback(req, res) {
 
     // generate tokens (3m and 5m expiries)
     const accessToken = jwt.sign(
-      { id: insightaUser.id },
+      { id: insightaUser.id, role: insightaUser.role },
       process.env.JWT_SECRET,
       { expiresIn: "3m" },
     );
 
     const refreshToken = jwt.sign(
-      { id: insightaUser.id },
+      { id: insightaUser.id, role: insightaUser.role },
       process.env.REFRESH_SECRET,
       { expiresIn: "5m" },
     );
@@ -273,14 +273,21 @@ export async function refreshToken(req, res) {
     // blacklist the old refresh token
     await blacklistToken(refresh_token, decodedRefreshToken);
 
+    // Get user role from DB for the new token claims
+    const userForRefresh = await getUser(userId);
+
     // Issue a new Access Token
-    const newAccessToken = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-      expiresIn: "3m",
-    });
+    const newAccessToken = jwt.sign(
+      { id: userId, role: userForRefresh.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "3m",
+      },
+    );
 
     // Issue a new Refresh Token
     const newRefreshToken = jwt.sign(
-      { id: userId },
+      { id: userId, role: userForRefresh.role },
       process.env.REFRESH_SECRET,
       { expiresIn: "5m" },
     );
