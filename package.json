@@ -11,11 +11,14 @@
     "npm": "11.9.0"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/**/*.test.js",
+    "lint": "eslint .",
     "start": "node app.js",
     "dev": "nodemon app.js"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
     "nodemon": "^3.1.14"
   },
   "dependencies": {
