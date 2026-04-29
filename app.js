@@ -19,15 +19,7 @@ const PORT = process.env.PORT;
 
 const app = express();
 
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || [
-      "http://localhost:5500",
-      "http://127.0.0.1:5500",
-    ],
-    credentials: true,
-  }),
-);
+app.use(cors());
 
 app.use(
   session({
@@ -50,7 +42,9 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+    console.log(
+      `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`,
+    );
   });
   next();
 });
