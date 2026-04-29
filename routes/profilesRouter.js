@@ -1,5 +1,6 @@
 import express from 'express'
 import { checkAdminAccess } from '../middlewares/adminAccess.js'
+import { getDashboardStats } from '../controllers/usersController.js'
 import { handlePostProfiles,
         exportProfiles,
         handleGetProfilesById,
@@ -14,6 +15,9 @@ profilesRouter.post('/', checkAdminAccess, handlePostProfiles)
 
 // for get endpoint of api/profiles/export?format=csv
 profilesRouter.get('/export', checkAdminAccess, exportProfiles)
+
+// GET /users/dashboard - Get dashboard statistics
+profilesRouter.get('/dashboard', getDashboardStats)
 
 // for get endpoint of /api/profiles for natural language query
 profilesRouter.get('/search', handleGetProfilesBySearchQueryParams)

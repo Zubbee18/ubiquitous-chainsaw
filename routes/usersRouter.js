@@ -1,4 +1,5 @@
 import express from 'express'
+
 export const usersRouter = express.Router()
 
 // GET /api/users/me - Get current authenticated user information
@@ -19,7 +20,9 @@ usersRouter.get('/me', (req, res) => {
             username: req.user.username,
             email: req.user.email,
             role: req.user.role,
-            created_at: req.user.created_at
+            avatar_url: req.user.avatar_url,
+            is_active: req.user.is_active,
+            last_login_at: req.user.last_login_at
         }
     })
 })

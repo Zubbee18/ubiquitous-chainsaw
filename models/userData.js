@@ -16,7 +16,7 @@ export async function checkUserExists(userId, github = true) {
 
 export async function getLoginUserFromId(githubUserId) {
 
-    const result = await db.query(`UPDATE users SET last_login_at = NOW() AT TIME ZONE 'UTC' WHERE github_id=$1
+    const result = await db.query(`UPDATE users SET last_login_at = NOW() AT TIME ZONE 'UTC', is_active = TRUE WHERE github_id=$1
                     RETURNING *`, [githubUserId])
 
     return result.rows[0]

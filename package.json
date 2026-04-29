@@ -25,7 +25,6 @@
     "cors": "^2.8.6",
     "country-codes-list": "^2.0.0",
     "crypto": "^1.0.1",
-    "csurf": "^1.11.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
