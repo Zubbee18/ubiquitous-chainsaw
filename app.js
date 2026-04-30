@@ -19,6 +19,10 @@ const PORT = process.env.PORT;
 
 const app = express();
 
+// Trust Railway's reverse proxy so req.secure is correct and express-session
+// sets Secure cookies properly.
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || [
