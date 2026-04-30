@@ -33,8 +33,17 @@ export function redirectUserToGitHub(req, res) {
     code_challenge_method: "S256",
   });
 
-  // redirects the user to github with parameters
-  res.redirect(`https://github.com/login/oauth/authorize?${params.toString()}`);
+  // Persist session to Redis before redirecting so the state is available
+  // when GitHub sends the user back to the callback.
+  req.session.save((err) => {
+    if (err) {
+      console.error("Session save failed:", err.message);
+      return res.status(500).send("Session error. Please try again.");
+    }
+    res.redirect(
+      `https://github.com/login/oauth/authorize?${params.toString()}`,
+    );
+  });
 }
 
 export async function handleGitHubCallback(req, res) {
