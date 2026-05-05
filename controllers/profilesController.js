@@ -1,6 +1,9 @@
 import { v7 as uuidv7 } from "uuid";
 import { deleteProfileDataById } from "../models/deleteProfileData.js";
-import { storeProcessedResult } from "../models/storeProcessedResult.js";
+import {
+  storeProcessedResult,
+  batchInsertProfiles,
+} from "../models/storeProcessedResult.js";
 import {
   retrieveProfileDataById,
   retrieveProfileDataByQueryParams,
@@ -9,6 +12,152 @@ import {
 } from "../models/retrieveProfileData.js";
 import axios from "axios";
 import { parse } from "json2csv";
+import { parse as csvParse } from "csv-parse";
+import busboy from "busboy";
+import * as countryCodes from "country-codes-list";
+
+const countryCodesMap = countryCodes.customList(
+  "countryCode",
+  "{countryNameEn}",
+);
+const VALID_GENDERS = new Set(["male", "female"]);
+const CSV_BATCH_SIZE = 500;
+
+function classifyAgeGroup(age) {
+  if (age < 13) return "child";
+  if (age < 20) return "teenager";
+  if (age < 60) return "adult";
+  return "senior";
+}
+
+function validateCSVRow(row) {
+  const name = row.name?.trim();
+  const gender = row.gender?.trim()?.toLowerCase();
+  const age = row.age;
+  const countryId = row.country_id?.trim();
+
+  if (
+    !name ||
+    !gender ||
+    age === undefined ||
+    age === null ||
+    age === "" ||
+    !countryId
+  ) {
+    return { valid: false, reason: "missing_fields" };
+  }
+
+  if (!VALID_GENDERS.has(gender)) {
+    return { valid: false, reason: "invalid_gender" };
+  }
+
+  const parsedAge = parseInt(age, 10);
+  if (isNaN(parsedAge) || parsedAge <= 0) {
+    return { valid: false, reason: "invalid_age" };
+  }
+
+  return { valid: true };
+}
+
+async function processCSVStream(file) {
+  const stats = {
+    total_rows: 0,
+    inserted: 0,
+    skipped: 0,
+    reasons: {},
+  };
+
+  function bumpReason(reason) {
+    stats.skipped++;
+    stats.reasons[reason] = (stats.reasons[reason] ?? 0) + 1;
+  }
+
+  const parser = file.pipe(
+    csvParse({
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      trim: true,
+      skip_records_with_error: true,
+    }),
+  );
+
+  // Count malformed rows that csv-parse skips internally
+  parser.on("skip", () => {
+    stats.total_rows++;
+    bumpReason("malformed_row");
+  });
+
+  let batch = [];
+  const batchNameSet = new Set();
+
+  async function flushBatch() {
+    if (batch.length === 0) return;
+    const toInsert = batch.splice(0);
+    batchNameSet.clear();
+    try {
+      const { insertedCount, duplicateCount } =
+        await batchInsertProfiles(toInsert);
+      stats.inserted += insertedCount;
+      if (duplicateCount > 0) {
+        stats.skipped += duplicateCount;
+        stats.reasons.duplicate_name =
+          (stats.reasons.duplicate_name ?? 0) + duplicateCount;
+      }
+    } catch (err) {
+      // Transient DB error: skip the batch but keep what was already committed
+      stats.skipped += toInsert.length;
+      stats.reasons.db_error = (stats.reasons.db_error ?? 0) + toInsert.length;
+      console.error(`CSV batch insert error: ${err.message}`);
+    }
+  }
+
+  try {
+    for await (const row of parser) {
+      stats.total_rows++;
+
+      const validation = validateCSVRow(row);
+      if (!validation.valid) {
+        bumpReason(validation.reason);
+        continue;
+      }
+
+      const name = row.name.trim().toLowerCase();
+
+      // Deduplicate within the current batch
+      if (batchNameSet.has(name)) {
+        bumpReason("duplicate_name");
+        continue;
+      }
+
+      const age = parseInt(row.age, 10);
+      batchNameSet.add(name);
+      batch.push({
+        id: uuidv7(),
+        name,
+        gender: row.gender.trim().toLowerCase(),
+        gender_probability: parseFloat(row.gender_probability) || 0,
+        age,
+        age_group: classifyAgeGroup(age),
+        country_id: row.country_id.trim().toUpperCase(),
+        country_name:
+          countryCodesMap[row.country_id.trim().toUpperCase()] ||
+          row.country_name?.trim() ||
+          "",
+        country_probability: parseFloat(row.country_probability) || 0,
+      });
+
+      if (batch.length >= CSV_BATCH_SIZE) {
+        await flushBatch();
+      }
+    }
+  } finally {
+    // Flush whatever remains, even if the loop exited due to an error
+    await flushBatch();
+  }
+
+  return stats;
+}
 
 export function handlePostProfiles(req, res) {
   const { name } = req.body;
@@ -188,7 +337,11 @@ export async function handleGetProfilesByQueryParams(req, res) {
 
 export async function handleGetProfilesBySearchQueryParams(req, res) {
   try {
-    const profileData = await retrieveProfileDataBySearchParams(req.query);
+    const profileData = await retrieveProfileDataBySearchParams(
+      req.query,
+      undefined,
+      req.parsedFilters ?? null,
+    );
 
     if (profileData.data?.length === 0) {
       res.status(404).json({ status: "error", message: "Profile not found" });
@@ -301,4 +454,82 @@ function processPostData(res, genderRes, ageRes, nationRes) {
     res.status(500).json({ status: "error", message: "Internal Server Error" });
     throw new Error(`Was unable to process data: ${err}`);
   }
+}
+
+export function uploadCSVProfiles(req, res) {
+  const contentType = req.headers["content-type"] ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return res.status(400).json({
+      status: "error",
+      message: "Request must be multipart/form-data",
+    });
+  }
+
+  let responseSent = false;
+  function sendResponse(status, body) {
+    if (!responseSent) {
+      responseSent = true;
+      res.status(status).json(body);
+    }
+  }
+
+  let fileProcessingPromise = null;
+
+  const bb = busboy({ headers: req.headers, limits: { files: 1 } });
+
+  bb.on("file", (fieldname, file, info) => {
+    const { filename = "", mimeType = "" } = info;
+    const isCSV =
+      mimeType === "text/csv" ||
+      mimeType === "application/vnd.ms-excel" ||
+      filename.toLowerCase().endsWith(".csv");
+
+    if (!isCSV) {
+      file.resume(); // drain and discard
+      return sendResponse(400, {
+        status: "error",
+        message: "Uploaded file must be a CSV (.csv)",
+      });
+    }
+
+    fileProcessingPromise = processCSVStream(file)
+      .then((stats) => {
+        const reasons = {};
+        for (const [key, val] of Object.entries(stats.reasons)) {
+          if (val > 0) reasons[key] = val;
+        }
+        sendResponse(200, {
+          status: "success",
+          total_rows: stats.total_rows,
+          inserted: stats.inserted,
+          skipped: stats.skipped,
+          reasons,
+        });
+      })
+      .catch((err) => {
+        console.error(`CSV upload error: ${err.message}`);
+        sendResponse(500, {
+          status: "error",
+          message: "Internal Server Error",
+        });
+      });
+  });
+
+  bb.on("finish", async () => {
+    if (fileProcessingPromise) {
+      await fileProcessingPromise;
+    } else {
+      sendResponse(400, {
+        status: "error",
+        message: "No CSV file was uploaded",
+      });
+    }
+  });
+
+  bb.on("error", (err) => {
+    console.error(`Busboy error: ${err.message}`);
+    sendResponse(400, { status: "error", message: "Failed to parse upload" });
+  });
+
+  req.pipe(bb);
 }

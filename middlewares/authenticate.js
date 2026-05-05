@@ -21,14 +21,12 @@ export async function authenticateUser(req, res, next) {
   try {
     // check if the token is expired or valid - if not, error
     const decodedAccessToken = jwt.verify(accessToken, process.env.JWT_SECRET);
-    console.log("Token is valid:", decodedAccessToken);
 
     // get user id from token claims
     const id = decodedAccessToken.id;
 
     // check if the user exists then attach the user to request and move forward
     if (await checkUserExists(id, false)) {
-      console.log(id);
       req.user = await getUser(id);
       return next();
     }
@@ -39,8 +37,6 @@ export async function authenticateUser(req, res, next) {
       .json({ status: "error", message: "User does not exist" });
   } catch (err) {
     if (err.name === "TokenExpiredError") {
-      console.log("Access Token expired at:", err.expiredAt);
-
       // Try to refresh token automatically for web clients (using cookie)
       if (req.cookies.refresh_token) {
         try {
@@ -73,9 +69,15 @@ export async function authenticateUser(req, res, next) {
           if (accessToken) {
             try {
               const oldDecoded = jwt.decode(accessToken);
-              await blacklistToken(accessToken, oldDecoded);
-            } catch (err) {
-              throw new Error("Token cannot be decoded", err);
+              if (oldDecoded) {
+                await blacklistToken(accessToken, oldDecoded);
+              }
+            } catch (blacklistErr) {
+              // Non-critical: access token is already expired, jwt.verify will reject it
+              console.log(
+                "Could not blacklist old access token:",
+                blacklistErr.message,
+              );
             }
           }
 
@@ -84,20 +86,20 @@ export async function authenticateUser(req, res, next) {
           const newAccessToken = jwt.sign(
             { id: userId, role: userForAutoRefresh.role },
             process.env.JWT_SECRET,
-            { expiresIn: "3m" },
+            { expiresIn: process.env.ACCESS_TOKEN_EXPIRY },
           );
 
           const newRefreshToken = jwt.sign(
             { id: userId, role: userForAutoRefresh.role },
             process.env.REFRESH_SECRET,
-            { expiresIn: "5m" },
+            { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
           );
 
           // Set new tokens as HTTP-only cookies
           const cookieOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
           };
           res.cookie("access_token", newAccessToken, cookieOptions);
           res.cookie("refresh_token", newRefreshToken, cookieOptions);

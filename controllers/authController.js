@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { URLSearchParams } from "node:url";
 import axios from "axios";
 import { isTokenBlacklisted, blacklistToken } from "../db/tokenBlacklist.js";
 import {
@@ -63,12 +64,12 @@ export async function handleGitHubCallback(req, res) {
       const accessToken = jwt.sign(
         { id: adminUser.id, role: adminUser.role },
         process.env.JWT_SECRET,
-        { expiresIn: "3m" },
+        { expiresIn: process.env.ACCESS_TOKEN_EXPIRY },
       );
       const refreshToken = jwt.sign(
         { id: adminUser.id, role: adminUser.role },
         process.env.REFRESH_SECRET,
-        { expiresIn: "5m" },
+        { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
       );
 
       const cookieOptions = {
@@ -158,13 +159,13 @@ export async function handleGitHubCallback(req, res) {
     const accessToken = jwt.sign(
       { id: insightaUser.id, role: insightaUser.role },
       process.env.JWT_SECRET,
-      { expiresIn: "3m" },
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY },
     );
 
     const refreshToken = jwt.sign(
       { id: insightaUser.id, role: insightaUser.role },
       process.env.REFRESH_SECRET,
-      { expiresIn: "5m" },
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
     );
 
     // Cookie options: secure only in production, lax sameSite for cross-origin in dev
@@ -201,12 +202,12 @@ export async function handleGitHubCliCallback(req, res) {
       const accessToken = jwt.sign(
         { id: adminUser.id, role: adminUser.role },
         process.env.JWT_SECRET,
-        { expiresIn: "3m" },
+        { expiresIn: process.env.ACCESS_TOKEN_EXPIRY },
       );
       const refreshToken = jwt.sign(
         { id: adminUser.id, role: adminUser.role },
         process.env.REFRESH_SECRET,
-        { expiresIn: "5m" },
+        { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
       );
 
       return res.status(200).json({
@@ -283,13 +284,13 @@ export async function handleGitHubCliCallback(req, res) {
     const accessToken = jwt.sign(
       { id: insightaUser.id, role: insightaUser.role },
       process.env.JWT_SECRET,
-      { expiresIn: "3m" },
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRY },
     );
 
     const refreshToken = jwt.sign(
       { id: insightaUser.id, role: insightaUser.role },
       process.env.REFRESH_SECRET,
-      { expiresIn: "5m" },
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
     );
 
     // Cookie options: secure only in production, lax sameSite for cross-origin in dev
@@ -365,7 +366,7 @@ export async function refreshToken(req, res) {
       { id: userId, role: userForRefresh.role },
       process.env.JWT_SECRET,
       {
-        expiresIn: "3m",
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
       },
     );
 
@@ -373,14 +374,14 @@ export async function refreshToken(req, res) {
     const newRefreshToken = jwt.sign(
       { id: userId, role: userForRefresh.role },
       process.env.REFRESH_SECRET,
-      { expiresIn: "5m" },
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY },
     );
 
-    // Cookie options: secure only in production, lax sameSite for cross-origin in dev
+    // Cookie options: secure only in production, none sameSite for cross-origin web portal
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     };
 
     // Set both tokens as HTTP-only cookies
@@ -395,7 +396,6 @@ export async function refreshToken(req, res) {
     });
   } catch (err) {
     if (err.name === "TokenExpiredError") {
-      console.log("Access Token expired at:", err.expiredAt);
       return res
         .status(401)
         .json({ status: "error", message: "Refresh Token has expired" });
@@ -460,7 +460,6 @@ export async function logoutUser(req, res) {
     res.clearCookie("refresh_token");
   } catch (err) {
     if (err.name === "TokenExpiredError") {
-      console.log("Token expired at:", err.expiredAt);
       // Even if tokens are expired, clear both cookies
       res.clearCookie("access_token");
       res.clearCookie("refresh_token");
