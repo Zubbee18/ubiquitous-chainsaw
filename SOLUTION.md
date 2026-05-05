@@ -8,7 +8,6 @@
 
 **Composite index on `(country_id, gender)`** — the two most-used filter columns. Built with `CONCURRENTLY` so reads and writes are never blocked during index creation.
 
-**Parameterized queries** — PostgreSQL caches the query plan for parameterized statements. All queries use `$n` placeholders throughout.
 
 ### Response Time After Injecting 500,000+ profile data into the database
 
