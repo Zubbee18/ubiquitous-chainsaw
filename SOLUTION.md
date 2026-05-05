@@ -14,11 +14,11 @@
 
 | Scenario                              | Time in (ms) |
 | ------------------------------------- | ------------ |
-| Filtered query with no index or cache (2033 profiles) | 515          |
-| Filtered query with index             | 465          |
-| Filtered query with cache (Redis hit) | 450          |
+| Filtered query with no index or cache (2033 profiles) | 516           |
+| Filtered query with index             |   1010        |
+| Filtered query with cache (Redis hit) | 464          |
 | Natural-language search with no cache | 768          |
-| Natural-language search with cache    | 679          |
+| Natural-language search with cache    | 383          |
 
 ---
 
