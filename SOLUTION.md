@@ -10,7 +10,7 @@
 
 **Parameterized queries** — PostgreSQL caches the query plan for parameterized statements. All queries use `$n` placeholders throughout.
 
-### Response Time After Injecting 50,000+ profile data into the database
+### Response Time After Injecting 500,000+ profile data into the database
 
 | Scenario                              | Time in (ms) |
 | ------------------------------------- | ------------ |
