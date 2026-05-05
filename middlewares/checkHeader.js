@@ -1,5 +1,4 @@
 export async function checkHeaderVersion(req, res, next) {
-  console.log("Incoming headers:", req.headers);
   const version = req.headers["x-api-version"];
 
   if (!version) {

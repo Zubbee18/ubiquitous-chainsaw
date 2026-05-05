@@ -2,7 +2,6 @@ import { v7 as uuidv7 } from "uuid";
 import { db } from "../db/openDBConnection.js";
 
 export async function checkUserExists(userId, github = true) {
-  console.log(github, userId);
   const userExists = await db.query(
     `SELECT * FROM users WHERE ${github ? "github_id" : "id"}=$1`,
     [userId],

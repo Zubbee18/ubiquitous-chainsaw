@@ -1,5 +1,5 @@
 import { db } from "../db/openDBConnection.js";
-import { getCountryIdFromQuery } from "../util/getCountryIdFromQuery.js";
+import { parseSearchQuery } from "../util/parseSearchQuery.js";
 
 export async function retrieveProfileDataByQueryParams(
   query,
@@ -25,14 +25,14 @@ export async function retrieveProfileDataByQueryParams(
   let paramIndex = 1;
 
   // Build filter conditions
-  if (gender) {
-    filterConditions.push(`gender = $${paramIndex++}`);
-    param.push(gender.toLowerCase());
-  }
-
   if (country_id) {
     filterConditions.push(`country_id = $${paramIndex++}`);
     param.push(country_id.toUpperCase());
+  }
+
+  if (gender) {
+    filterConditions.push(`gender = $${paramIndex++}`);
+    param.push(gender.toLowerCase());
   }
 
   if (age_group) {
@@ -99,7 +99,7 @@ export async function retrieveProfileDataByQueryParams(
   try {
     // Count only rows matching the active filters
     const countResult = await db.query(
-      `SELECT COUNT(*) AS total FROM profiles${whereClause}`,
+      `SELECT COUNT(id) AS total FROM profiles${whereClause}`,
       filterParams,
     );
     const dataResult = await db.query(sqlQuery, param);
@@ -150,14 +150,14 @@ export async function retrieveProfileDataForExport(query) {
   let paramIndex = 1;
 
   // Build filter conditions
-  if (gender) {
-    filterConditions.push(`gender = $${paramIndex++}`);
-    param.push(gender.toLowerCase());
-  }
-
   if (country_id) {
     filterConditions.push(`country_id = $${paramIndex++}`);
     param.push(country_id.toUpperCase());
+  }
+
+  if (gender) {
+    filterConditions.push(`gender = $${paramIndex++}`);
+    param.push(gender.toLowerCase());
   }
 
   if (age_group) {
@@ -223,113 +223,57 @@ export async function retrieveProfileDataForExport(query) {
 export async function retrieveProfileDataBySearchParams(
   query,
   baseUrl = "/api/profiles/search",
+  parsedFilters = null,
 ) {
   const { q, page, limit } = query;
+
+  if (!q && !parsedFilters) {
+    return { message: "Invalid query parameters" };
+  }
+
+  // Use pre-parsed filters from normalizeSearchQuery middleware when available
+  // so parsing only happens once per request and the result is consistent.
+  const filters = parsedFilters ?? (await parseSearchQuery(q));
+  if (!filters) {
+    return { message: "Unable to interpret query" };
+  }
+
   let sqlQuery = "SELECT * FROM profiles";
   let param = [];
   let conditions = [];
   let paramIndex = 1;
 
-  // get by search parameters
-  if (q) {
-    const lowerQuery = q.toLowerCase();
-
-    // check for gender (including plurals)
-    // if both "male" and "female" are mentioned, don't filter by gender
-    const hasFemale =
-      lowerQuery.includes("female") || lowerQuery.includes("females");
-    const hasMale = lowerQuery.includes("male") || lowerQuery.includes("males");
-
-    if (hasFemale && !hasMale) {
-      // Only "female" or "females" mentioned
-      conditions.push(`gender = $${paramIndex++}`);
-      param.push("female");
-    } else if (hasMale && !hasFemale) {
-      // Only "male" or "males" mentioned (but not "female"/"females")
-      conditions.push(`gender = $${paramIndex++}`);
-      param.push("male");
-    }
-    // If both or neither are mentioned, don't add gender filter
-
-    // check for country_id
-    const countryId = await getCountryIdFromQuery(q);
-    if (countryId) {
-      conditions.push(`country_id = $${paramIndex++}`);
-      param.push(countryId);
-    }
-
-    // check for age_group (including plurals)
-    if (
-      lowerQuery.includes("adult") ||
-      lowerQuery.includes("adults") ||
-      lowerQuery.includes("child") ||
-      lowerQuery.includes("children") ||
-      lowerQuery.includes("teenager") ||
-      lowerQuery.includes("teenagers") ||
-      lowerQuery.includes("senior") ||
-      lowerQuery.includes("seniors")
-    ) {
-      let age_group = "";
-
-      if (lowerQuery.includes("senior")) {
-        age_group = "senior";
-      } else if (lowerQuery.includes("teenager")) {
-        age_group = "teenager";
-      } else if (lowerQuery.includes("adult")) {
-        age_group = "adult";
-      } else if (lowerQuery.includes("child")) {
-        age_group = "child";
-      }
-
-      if (age_group) {
-        conditions.push(`age_group = $${paramIndex++}`);
-        param.push(age_group);
-      }
-    }
-
-    // check for "young" keyword → maps to ages 16-24
-    if (lowerQuery.includes("young")) {
-      conditions.push(`age >= $${paramIndex++}`);
-      param.push(16);
-      conditions.push(`age <= $${paramIndex++}`);
-      param.push(24);
-    }
-
-    // check for age expressions like "above X", "below X", "under X", "over X"
-    // Pattern: "above/over/below/under" followed by a number
-    const aboveMatch = lowerQuery.match(/(?:above|over)\s+(\d+)/);
-    const belowMatch = lowerQuery.match(/(?:below|under)\s+(\d+)/);
-
-    if (aboveMatch) {
-      const minAge = parseInt(aboveMatch[1]);
-      conditions.push(`age >= $${paramIndex++}`);
-      param.push(minAge);
-    }
-
-    if (belowMatch) {
-      const maxAge = parseInt(belowMatch[1]);
-      conditions.push(`age <= $${paramIndex++}`);
-      param.push(maxAge);
-    }
-
-    // check if the query matches any of the above
-    if (conditions.length > 0) {
-      sqlQuery += " WHERE " + conditions.join(" AND ");
-    } else {
-      return {
-        message: "Unable to interpret query",
-      };
-    }
-  } else {
-    return {
-      message: "Invalid query parameters",
-    };
+  // Build SQL conditions from the canonical filter object
+  if (filters.country_id) {
+    conditions.push(`country_id = $${paramIndex++}`);
+    param.push(filters.country_id);
   }
+  if (filters.gender) {
+    conditions.push(`gender = $${paramIndex++}`);
+    param.push(filters.gender);
+  }
+  if (filters.age_group) {
+    conditions.push(`age_group = $${paramIndex++}`);
+    param.push(filters.age_group);
+  }
+  if (filters.min_age !== undefined) {
+    conditions.push(`age >= $${paramIndex++}`);
+    param.push(filters.min_age);
+  }
+  if (filters.max_age !== undefined) {
+    conditions.push(`age <= $${paramIndex++}`);
+    param.push(filters.max_age);
+  }
+
+  if (conditions.length === 0) {
+    return { message: "Unable to interpret query" };
+  }
+
+  const whereClause = " WHERE " + conditions.join(" AND ");
+  sqlQuery += whereClause;
 
   // Capture filter params before appending LIMIT/OFFSET params
   const filterParams = [...param];
-  const whereClause =
-    conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
 
   // Add pagination
   const currentPage = parseInt(page) || 1;
@@ -342,7 +286,7 @@ export async function retrieveProfileDataBySearchParams(
   try {
     // Count only rows matching the search conditions
     const countResult = await db.query(
-      `SELECT COUNT(*) AS total FROM profiles${whereClause}`,
+      `SELECT COUNT(id) AS total FROM profiles${whereClause}`,
       filterParams,
     );
     const dataResult = await db.query(sqlQuery, param);
@@ -370,7 +314,7 @@ export async function retrieveProfileDataBySearchParams(
       message: "successful",
     };
   } catch (err) {
-    throw new Error(`Data could not be retrieved: ${err.message}`);
+    throw new Error(`Data could not be retrieved: ${err}`);
   }
 }
 
