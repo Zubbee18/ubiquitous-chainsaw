@@ -10,11 +10,11 @@
 
 **Parameterized queries** — PostgreSQL caches the query plan for parameterized statements. All queries use `$n` placeholders throughout.
 
-### Before / After
+### Response Time After Injecting 20,000+ profile data into the database
 
 | Scenario                              | Time in (ms) |
 | ------------------------------------- | ------------ |
-| Filtered query with no index or cache | 515          |
+| Filtered query with no index or cache (2033 profiles) | 515          |
 | Filtered query with index             | 465          |
 | Filtered query with cache (Redis hit) | 450          |
 | Natural-language search with no cache | 768          |
