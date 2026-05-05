@@ -48,6 +48,11 @@ export function redisCacheMiddleware(
   },
 ) {
   return async (req, res, next) => {
+    // Only cache GET requests — POST uploads must always reach the controller.
+    if (req.method !== "GET") {
+      return next();
+    }
+
     if (isRedisWorking()) {
       const key = requestToKey(req);
       // if there is some cached data, retrieve it and return it
