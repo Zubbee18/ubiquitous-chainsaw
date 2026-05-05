@@ -5,13 +5,14 @@ import session from "express-session";
 import cookieParser from "cookie-parser";
 import { RedisStore } from "connect-redis";
 import redisClient from "./db/redisClient.js";
-import { createUsersTable } from "./db/createTable.js";
 import { authenticateUser } from "./middlewares/authenticate.js";
 import { checkHeaderVersion } from "./middlewares/checkHeader.js";
 import { classifyRouter } from "./routes/classifyRouter.js";
 import { profilesRouter } from "./routes/profilesRouter.js";
 import { usersRouter } from "./routes/usersRouter.js";
-import { createTable } from "./db/createTable.js";
+import { createTable, indexTable, createUsersTable } from "./db/createTable.js";
+import { redisCacheMiddleware } from "./middlewares/redis.js";
+import { normalizeSearchQuery } from "./middlewares/normalizeSearchQuery.js";
 import { authRouter } from "./routes/auth.js";
 import { authLimiter, apiLimiter } from "./middlewares/rateLimit.js";
 
@@ -49,6 +50,8 @@ app.use(
 
 await createUsersTable();
 
+await indexTable();
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -73,6 +76,8 @@ app.use("/api/classify", apiLimiter, authenticateUser, classifyRouter);
 app.use(
   "/api/profiles",
   apiLimiter,
+  normalizeSearchQuery,
+  redisCacheMiddleware(),
   authenticateUser,
   checkHeaderVersion,
   profilesRouter,
@@ -81,6 +86,7 @@ app.use(
 app.use(
   "/api/users",
   apiLimiter,
+  redisCacheMiddleware(),
   authenticateUser,
   checkHeaderVersion,
   usersRouter,
