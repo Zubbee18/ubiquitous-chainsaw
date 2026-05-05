@@ -60,6 +60,9 @@ function validateCSVRow(row) {
 }
 
 async function processCSVStream(file) {
+  console.log("[CSV] Stream processing started");
+  const startTime = Date.now();
+
   const stats = {
     total_rows: 0,
     inserted: 0,
@@ -83,18 +86,22 @@ async function processCSVStream(file) {
   );
 
   // Count malformed rows that csv-parse skips internally
-  parser.on("skip", () => {
+  parser.on("skip", (err) => {
     stats.total_rows++;
     bumpReason("malformed_row");
+    console.warn(`[CSV] Malformed row ~${stats.total_rows} skipped: ${err.message}`);
   });
 
   let batch = [];
   const batchNameSet = new Set();
+  let batchNumber = 0;
 
   async function flushBatch() {
     if (batch.length === 0) return;
+    batchNumber++;
     const toInsert = batch.splice(0);
     batchNameSet.clear();
+    console.log(`[CSV] Batch #${batchNumber}: flushing ${toInsert.length} rows (${stats.total_rows} total read)`);
     try {
       const { insertedCount, duplicateCount } =
         await batchInsertProfiles(toInsert);
@@ -104,17 +111,22 @@ async function processCSVStream(file) {
         stats.reasons.duplicate_name =
           (stats.reasons.duplicate_name ?? 0) + duplicateCount;
       }
+      console.log(`[CSV] Batch #${batchNumber}: inserted ${insertedCount}, duplicates ${duplicateCount}`);
     } catch (err) {
       // Transient DB error: skip the batch but keep what was already committed
       stats.skipped += toInsert.length;
       stats.reasons.db_error = (stats.reasons.db_error ?? 0) + toInsert.length;
-      console.error(`CSV batch insert error: ${err.message}`);
+      console.error(`[CSV] Batch #${batchNumber} DB error (${toInsert.length} rows skipped): ${err.message}`);
     }
   }
 
   try {
     for await (const row of parser) {
       stats.total_rows++;
+
+      if (stats.total_rows % 10000 === 0) {
+        console.log(`[CSV] Progress: ${stats.total_rows} rows read, ${stats.inserted} inserted, ${stats.skipped} skipped`);
+      }
 
       const validation = validateCSVRow(row);
       if (!validation.valid) {
@@ -152,10 +164,12 @@ async function processCSVStream(file) {
       }
     }
   } finally {
-    // Flush whatever remains, even if the loop exited due to an error
+    console.log("[CSV] End of file — flushing remaining rows");
     await flushBatch();
   }
 
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(`[CSV] Done in ${elapsed}s — total: ${stats.total_rows}, inserted: ${stats.inserted}, skipped: ${stats.skipped}`, stats.reasons);
   return stats;
 }
 
@@ -458,7 +472,10 @@ function processPostData(res, genderRes, ageRes, nationRes) {
 
 export function uploadCSVProfiles(req, res) {
   const contentType = req.headers["content-type"] ?? "";
+  console.log(`[CSV Upload] Request received — content-type: ${contentType}`);
+
   if (!contentType.includes("multipart/form-data")) {
+    console.warn("[CSV Upload] Rejected: not multipart/form-data");
     return res.status(400).json({
       status: "error",
       message: "Request must be multipart/form-data",
@@ -469,6 +486,7 @@ export function uploadCSVProfiles(req, res) {
   function sendResponse(status, body) {
     if (!responseSent) {
       responseSent = true;
+      console.log(`[CSV Upload] Response ${status}:`, body);
       res.status(status).json(body);
     }
   }
@@ -479,6 +497,8 @@ export function uploadCSVProfiles(req, res) {
 
   bb.on("file", (fieldname, file, info) => {
     const { filename = "", mimeType = "" } = info;
+    console.log(`[CSV Upload] File field received — field: '${fieldname}', filename: '${filename}', mimeType: '${mimeType}'`);
+
     const isCSV =
       mimeType === "text/csv" ||
       mimeType === "application/vnd.ms-excel" ||
@@ -486,6 +506,7 @@ export function uploadCSVProfiles(req, res) {
 
     if (!isCSV) {
       file.resume(); // drain and discard
+      console.warn(`[CSV Upload] Rejected: file is not a CSV (mimeType='${mimeType}', filename='${filename}')`);
       return sendResponse(400, {
         status: "error",
         message: "Uploaded file must be a CSV (.csv)",
@@ -507,7 +528,7 @@ export function uploadCSVProfiles(req, res) {
         });
       })
       .catch((err) => {
-        console.error(`CSV upload error: ${err.message}`);
+        console.error(`[CSV Upload] Stream error: ${err.message}`, err.stack);
         sendResponse(500, {
           status: "error",
           message: "Internal Server Error",
@@ -515,10 +536,13 @@ export function uploadCSVProfiles(req, res) {
       });
   });
 
-  bb.on("finish", async () => {
+  // busboy v1 emits 'close' when done, not 'finish'
+  bb.on("close", async () => {
+    console.log("[CSV Upload] Busboy finished parsing multipart body");
     if (fileProcessingPromise) {
       await fileProcessingPromise;
     } else {
+      console.warn("[CSV Upload] No file field found in request");
       sendResponse(400, {
         status: "error",
         message: "No CSV file was uploaded",
@@ -527,7 +551,7 @@ export function uploadCSVProfiles(req, res) {
   });
 
   bb.on("error", (err) => {
-    console.error(`Busboy error: ${err.message}`);
+    console.error(`[CSV Upload] Busboy error: ${err.message}`, err.stack);
     sendResponse(400, { status: "error", message: "Failed to parse upload" });
   });
 

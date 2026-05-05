@@ -77,8 +77,8 @@ app.use(
   "/api/profiles",
   apiLimiter,
   normalizeSearchQuery,
-  redisCacheMiddleware(),
   authenticateUser,
+  redisCacheMiddleware(),
   checkHeaderVersion,
   profilesRouter,
 );
@@ -86,8 +86,8 @@ app.use(
 app.use(
   "/api/users",
   apiLimiter,
-  redisCacheMiddleware(),
   authenticateUser,
+  redisCacheMiddleware(),
   checkHeaderVersion,
   usersRouter,
 );
