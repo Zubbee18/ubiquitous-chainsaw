@@ -16,163 +16,6 @@ import { parse as csvParse } from "csv-parse";
 import busboy from "busboy";
 import * as countryCodes from "country-codes-list";
 
-const countryCodesMap = countryCodes.customList(
-  "countryCode",
-  "{countryNameEn}",
-);
-const VALID_GENDERS = new Set(["male", "female"]);
-const CSV_BATCH_SIZE = 500;
-
-function classifyAgeGroup(age) {
-  if (age < 13) return "child";
-  if (age < 20) return "teenager";
-  if (age < 60) return "adult";
-  return "senior";
-}
-
-function validateCSVRow(row) {
-  const name = row.name?.trim();
-  const gender = row.gender?.trim()?.toLowerCase();
-  const age = row.age;
-  const countryId = row.country_id?.trim();
-
-  if (
-    !name ||
-    !gender ||
-    age === undefined ||
-    age === null ||
-    age === "" ||
-    !countryId
-  ) {
-    return { valid: false, reason: "missing_fields" };
-  }
-
-  if (!VALID_GENDERS.has(gender)) {
-    return { valid: false, reason: "invalid_gender" };
-  }
-
-  const parsedAge = parseInt(age, 10);
-  if (isNaN(parsedAge) || parsedAge <= 0) {
-    return { valid: false, reason: "invalid_age" };
-  }
-
-  return { valid: true };
-}
-
-async function processCSVStream(file) {
-  console.log("[CSV] Stream processing started");
-  const startTime = Date.now();
-
-  const stats = {
-    total_rows: 0,
-    inserted: 0,
-    skipped: 0,
-    reasons: {},
-  };
-
-  function bumpReason(reason) {
-    stats.skipped++;
-    stats.reasons[reason] = (stats.reasons[reason] ?? 0) + 1;
-  }
-
-  const parser = file.pipe(
-    csvParse({
-      columns: true,
-      skip_empty_lines: true,
-      relax_column_count: true,
-      trim: true,
-      skip_records_with_error: true,
-    }),
-  );
-
-  // Count malformed rows that csv-parse skips internally
-  parser.on("skip", (err) => {
-    stats.total_rows++;
-    bumpReason("malformed_row");
-    console.warn(`[CSV] Malformed row ~${stats.total_rows} skipped: ${err.message}`);
-  });
-
-  let batch = [];
-  const batchNameSet = new Set();
-  let batchNumber = 0;
-
-  async function flushBatch() {
-    if (batch.length === 0) return;
-    batchNumber++;
-    const toInsert = batch.splice(0);
-    batchNameSet.clear();
-    console.log(`[CSV] Batch #${batchNumber}: flushing ${toInsert.length} rows (${stats.total_rows} total read)`);
-    try {
-      const { insertedCount, duplicateCount } =
-        await batchInsertProfiles(toInsert);
-      stats.inserted += insertedCount;
-      if (duplicateCount > 0) {
-        stats.skipped += duplicateCount;
-        stats.reasons.duplicate_name =
-          (stats.reasons.duplicate_name ?? 0) + duplicateCount;
-      }
-      console.log(`[CSV] Batch #${batchNumber}: inserted ${insertedCount}, duplicates ${duplicateCount}`);
-    } catch (err) {
-      // Transient DB error: skip the batch but keep what was already committed
-      stats.skipped += toInsert.length;
-      stats.reasons.db_error = (stats.reasons.db_error ?? 0) + toInsert.length;
-      console.error(`[CSV] Batch #${batchNumber} DB error (${toInsert.length} rows skipped): ${err.message}`);
-    }
-  }
-
-  try {
-    for await (const row of parser) {
-      stats.total_rows++;
-
-      if (stats.total_rows % 10000 === 0) {
-        console.log(`[CSV] Progress: ${stats.total_rows} rows read, ${stats.inserted} inserted, ${stats.skipped} skipped`);
-      }
-
-      const validation = validateCSVRow(row);
-      if (!validation.valid) {
-        bumpReason(validation.reason);
-        continue;
-      }
-
-      const name = row.name.trim().toLowerCase();
-
-      // Deduplicate within the current batch
-      if (batchNameSet.has(name)) {
-        bumpReason("duplicate_name");
-        continue;
-      }
-
-      const age = parseInt(row.age, 10);
-      batchNameSet.add(name);
-      batch.push({
-        id: uuidv7(),
-        name,
-        gender: row.gender.trim().toLowerCase(),
-        gender_probability: parseFloat(row.gender_probability) || 0,
-        age,
-        age_group: classifyAgeGroup(age),
-        country_id: row.country_id.trim().toUpperCase(),
-        country_name:
-          countryCodesMap[row.country_id.trim().toUpperCase()] ||
-          row.country_name?.trim() ||
-          "",
-        country_probability: parseFloat(row.country_probability) || 0,
-      });
-
-      if (batch.length >= CSV_BATCH_SIZE) {
-        await flushBatch();
-      }
-    }
-  } finally {
-    console.log("[CSV] End of file — flushing remaining rows");
-    await flushBatch();
-  }
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-  console.log(`[CSV] Done in ${elapsed}s — total: ${stats.total_rows}, inserted: ${stats.inserted}, skipped: ${stats.skipped}`, stats.reasons);
-  return stats;
-}
-
 export function handlePostProfiles(req, res) {
   const { name } = req.body;
 
@@ -474,6 +317,7 @@ export function uploadCSVProfiles(req, res) {
   const contentType = req.headers["content-type"] ?? "";
   console.log(`[CSV Upload] Request received — content-type: ${contentType}`);
 
+  // check if it's a form-data
   if (!contentType.includes("multipart/form-data")) {
     console.warn("[CSV Upload] Rejected: not multipart/form-data");
     return res.status(400).json({
@@ -493,12 +337,17 @@ export function uploadCSVProfiles(req, res) {
 
   let fileProcessingPromise = null;
 
+  // set up the stream on busboy
   const bb = busboy({ headers: req.headers, limits: { files: 1 } });
 
   bb.on("file", (fieldname, file, info) => {
+    // provides the filestream, filename and metadata
     const { filename = "", mimeType = "" } = info;
-    console.log(`[CSV Upload] File field received — field: '${fieldname}', filename: '${filename}', mimeType: '${mimeType}'`);
+    console.log(
+      `[CSV Upload] File field received — field: '${fieldname}', filename: '${filename}', mimeType: '${mimeType}'`,
+    );
 
+    // check if it's a csv file
     const isCSV =
       mimeType === "text/csv" ||
       mimeType === "application/vnd.ms-excel" ||
@@ -506,13 +355,16 @@ export function uploadCSVProfiles(req, res) {
 
     if (!isCSV) {
       file.resume(); // drain and discard
-      console.warn(`[CSV Upload] Rejected: file is not a CSV (mimeType='${mimeType}', filename='${filename}')`);
+      console.warn(
+        `[CSV Upload] Rejected: file is not a CSV (mimeType='${mimeType}', filename='${filename}')`,
+      );
       return sendResponse(400, {
         status: "error",
         message: "Uploaded file must be a CSV (.csv)",
       });
     }
 
+    // start the file processing promise and then if send a response
     fileProcessingPromise = processCSVStream(file)
       .then((stats) => {
         const reasons = {};
@@ -556,4 +408,175 @@ export function uploadCSVProfiles(req, res) {
   });
 
   req.pipe(bb);
+}
+
+// ================================ HELPER FUNCTIONS FOR CSV UPLOAD ====================================
+const countryCodesMap = countryCodes.customList(
+  "countryCode",
+  "{countryNameEn}",
+);
+const VALID_GENDERS = new Set(["male", "female"]);
+const CSV_BATCH_SIZE = 500;
+
+function classifyAgeGroup(age) {
+  if (age < 13) return "child";
+  if (age < 20) return "teenager";
+  if (age < 60) return "adult";
+  return "senior";
+}
+
+function validateCSVRow(row) {
+  const name = row.name?.trim();
+  const gender = row.gender?.trim()?.toLowerCase();
+  const age = row.age;
+  const countryId = row.country_id?.trim();
+
+  if (
+    !name ||
+    !gender ||
+    age === undefined ||
+    age === null ||
+    age === "" ||
+    !countryId
+  ) {
+    return { valid: false, reason: "missing_fields" };
+  }
+
+  if (!VALID_GENDERS.has(gender)) {
+    return { valid: false, reason: "invalid_gender" };
+  }
+
+  const parsedAge = parseInt(age, 10);
+  if (isNaN(parsedAge) || parsedAge <= 0) {
+    return { valid: false, reason: "invalid_age" };
+  }
+
+  return { valid: true };
+}
+
+async function processCSVStream(file) {
+  console.log("[CSV] Stream processing started");
+  const startTime = Date.now();
+
+  const stats = {
+    total_rows: 0,
+    inserted: 0,
+    skipped: 0,
+    reasons: {},
+  };
+
+  function bumpReason(reason) {
+    stats.skipped++;
+    stats.reasons[reason] = (stats.reasons[reason] ?? 0) + 1;
+  }
+
+  const parser = file.pipe(
+    csvParse({
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      trim: true,
+      skip_records_with_error: true,
+    }),
+  );
+
+  // Count malformed rows that csv-parse skips internally
+  parser.on("skip", (err) => {
+    stats.total_rows++;
+    bumpReason("malformed_row");
+    console.warn(
+      `[CSV] Malformed row ~${stats.total_rows} skipped: ${err.message}`,
+    );
+  });
+
+  let batch = [];
+  const batchNameSet = new Set();
+  let batchNumber = 0;
+
+  async function flushBatch() {
+    if (batch.length === 0) return;
+    batchNumber++;
+    const toInsert = batch.splice(0);
+    batchNameSet.clear();
+    console.log(
+      `[CSV] Batch #${batchNumber}: flushing ${toInsert.length} rows (${stats.total_rows} total read)`,
+    );
+    try {
+      const { insertedCount, duplicateCount } =
+        await batchInsertProfiles(toInsert);
+      stats.inserted += insertedCount;
+      if (duplicateCount > 0) {
+        stats.skipped += duplicateCount;
+        stats.reasons.duplicate_name =
+          (stats.reasons.duplicate_name ?? 0) + duplicateCount;
+      }
+      console.log(
+        `[CSV] Batch #${batchNumber}: inserted ${insertedCount}, duplicates ${duplicateCount}`,
+      );
+    } catch (err) {
+      // Transient DB error: skip the batch but keep what was already committed
+      stats.skipped += toInsert.length;
+      stats.reasons.db_error = (stats.reasons.db_error ?? 0) + toInsert.length;
+      console.error(
+        `[CSV] Batch #${batchNumber} DB error (${toInsert.length} rows skipped): ${err.message}`,
+      );
+    }
+  }
+
+  try {
+    for await (const row of parser) {
+      stats.total_rows++;
+
+      if (stats.total_rows % 10000 === 0) {
+        console.log(
+          `[CSV] Progress: ${stats.total_rows} rows read, ${stats.inserted} inserted, ${stats.skipped} skipped`,
+        );
+      }
+
+      const validation = validateCSVRow(row);
+      if (!validation.valid) {
+        bumpReason(validation.reason);
+        continue;
+      }
+
+      const name = row.name.trim().toLowerCase();
+
+      // Deduplicate within the current batch
+      if (batchNameSet.has(name)) {
+        bumpReason("duplicate_name");
+        continue;
+      }
+
+      const age = parseInt(row.age, 10);
+      batchNameSet.add(name);
+      batch.push({
+        id: uuidv7(),
+        name,
+        gender: row.gender.trim().toLowerCase(),
+        gender_probability: parseFloat(row.gender_probability) || 0,
+        age,
+        age_group: classifyAgeGroup(age),
+        country_id: row.country_id.trim().toUpperCase(),
+        country_name:
+          countryCodesMap[row.country_id.trim().toUpperCase()] ||
+          row.country_name?.trim() ||
+          "",
+        country_probability: parseFloat(row.country_probability) || 0,
+      });
+
+      if (batch.length >= CSV_BATCH_SIZE) {
+        await flushBatch();
+      }
+    }
+  } finally {
+    console.log("[CSV] End of file — flushing remaining rows");
+    await flushBatch();
+  }
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(
+    `[CSV] Done in ${elapsed}s — total: ${stats.total_rows}, inserted: ${stats.inserted}, skipped: ${stats.skipped}`,
+    stats.reasons,
+  );
+  return stats;
 }
