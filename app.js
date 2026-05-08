@@ -48,6 +48,8 @@ app.use(
   }),
 );
 
+await createTable();
+
 await createUsersTable();
 
 await indexTable();
