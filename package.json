@@ -28,7 +28,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "country-codes-list": "^2.0.0",
-    "csv-parse": "^6.2.1",
+    "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
